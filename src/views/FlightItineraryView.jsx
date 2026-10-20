@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, AlertCircle, Loader2 } from 'lucide-react';
 import { useFlightItinerary } from '../hooks/useFlightItinerary';
 import FlightSelector from '../components/flight-itinerary/FlightSelector';
@@ -9,12 +9,14 @@ import DepartureCard from '../components/flight-itinerary/DepartureCard';
 import LandingCard from '../components/flight-itinerary/LandingCard';
 import PostflightCard from '../components/flight-itinerary/PostflightCard';
 import CreateReportCard from '../components/flight-itinerary/CreateReportCard';
+import FlightReportsCard from '../components/common/FlightReportsCard';
 import SpndCard from '../components/common/SpndCard';
 import StickyFlightBar from '../components/common/StickyFlightBar';
+import AlarmModal from '../components/common/AlarmModal';
+import AlarmOverlay from '../components/common/AlarmOverlay';
+import { EditReportModal } from '../components/reports';
 
-const getTodayStringISO = () => {
-  return new Date().toISOString().split('T')[0];
-};
+const getTodayStringISO = () => new Date().toISOString().split('T')[0];
 
 export default function FlightItineraryView({
   activeFlightContext,
@@ -28,13 +30,21 @@ export default function FlightItineraryView({
     return activeFlightContext?.date || getTodayStringISO();
   });
 
+  const [editingReport, setEditingReport] = useState(null);
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [isAlarmModalOpen, setIsAlarmModalOpen] = useState(false);
+  const [showFullScreenAlarm, setShowFullScreenAlarm] = useState(false);
+
+  // ✅ REFS para el reloj de alarmas
+  const triggeredAlarmsRef = useRef(new Set());
+  const lastCierrePuertasRef = useRef(null);
+
   useEffect(() => {
     if (activeFlightContext?.date) {
       setSelectedDate(activeFlightContext.date);
     }
   }, [activeFlightContext?.date]);
 
-  // Controlador unificado
   const itineraryController = useFlightItinerary(
     selectedDate,
     activeFlightContext?.id,
@@ -60,21 +70,123 @@ export default function FlightItineraryView({
     return (
       <div className="flex flex-col items-center justify-center min-h-[300px] text-textSub space-y-3">
         <Loader2 className="w-7 h-7 animate-spin text-cyberCyan" />
-        <span className="text-xs font-bold uppercase tracking-wider">
-          Cargando itinerario...
-        </span>
+        <span className="text-xs font-bold uppercase tracking-wider">Cargando itinerario...</span>
       </div>
     );
   }
 
   const hasFlights = dayFlights.length > 0 && currentFlight !== null;
 
+  // ✅ RELOJ ESTABILIZADO CON useRef
+  useEffect(() => {
+    const cierrePuertas = currentFlight?.cierrePuerta || currentFlight?.cierrePuertasTime;
+
+    // 1. Si no hay hora válida, limpiar refs y salir
+    if (!cierrePuertas || cierrePuertas === '--:--' || !currentFlight?.id) {
+      lastCierrePuertasRef.current = null;
+      triggeredAlarmsRef.current = new Set();
+      setShowFullScreenAlarm(false);
+      return;
+    }
+
+    // 2. ✅ CLAVE: Si la hora es la misma que la última vez, NO reiniciar el reloj
+    if (lastCierrePuertasRef.current === cierrePuertas) {
+      return;
+    }
+
+    // 3. Si llegamos aquí, la hora cambió. Actualizamos el ref y reseteamos todo
+    lastCierrePuertasRef.current = cierrePuertas;
+    triggeredAlarmsRef.current = new Set();
+    setShowFullScreenAlarm(false);
+
+    const [hours, minutes] = cierrePuertas.split(':').map(Number);
+    if (isNaN(hours) || isNaN(minutes)) return;
+
+    console.log(`⏰ Reloj iniciado para ${currentFlight.flightNumber} - Cierre: ${cierrePuertas}`);
+
+    // 4. Crear el intervalo
+    const intervalId = setInterval(() => {
+      const alarmEnabled = localStorage.getItem('doorCloseAlarm') === 'true';
+      const savedMinutes = localStorage.getItem('alarmMinutesList');
+      const alarmMinutes = savedMinutes ? JSON.parse(savedMinutes) : [5, 15];
+
+      if (!alarmEnabled || alarmMinutes.length === 0) return;
+
+      const now = new Date();
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+      for (const minBefore of alarmMinutes) {
+        const alarmMinutesTotal = hours * 60 + (minutes - minBefore);
+        const normalizedAlarmMinutes = alarmMinutesTotal < 0 ? alarmMinutesTotal + 1440 : alarmMinutesTotal;
+        const diff = nowMinutes - normalizedAlarmMinutes;
+        const alarmKey = `${currentFlight.id}-${minBefore}`;
+
+        if (diff >= 0 && diff < 1 && !triggeredAlarmsRef.current.has(alarmKey)) {
+          console.log(`🚨 ALARMA DISPARADA: ${minBefore} min antes de ${cierrePuertas}`);
+          triggeredAlarmsRef.current.add(alarmKey);
+          setShowFullScreenAlarm(true);
+        }
+      }
+    }, 5000);
+
+    // 5. Limpieza
+    return () => {
+      clearInterval(intervalId);
+      console.log('⏰ Reloj detenido');
+    };
+  }, [currentFlight?.id, currentFlight?.cierrePuerta, currentFlight?.cierrePuertasTime]);
+
+  // Handler para marcar reporte como completado/pendiente
+  const handleToggleReportComplete = (index) => {
+    const reports = [...(currentFlight?.reports || [])];
+    if (reports[index]) {
+      reports[index].completed = !reports[index].completed;
+      handleUpdateFlightField('reports', reports);
+    }
+  };
+
+  const handleOpenEditReport = (report, index) => {
+    setEditingReport({
+      ...report,
+      flightNumber: currentFlight?.flightNumber || 'N/A',
+      route: currentFlight?.route || 'N/A'
+    });
+    setEditingIndex(index);
+  };
+
+  const handleSaveEditedReport = (updatedReport) => {
+    if (editingIndex === null) return;
+    const currentReports = [...(currentFlight?.reports || [])];
+    currentReports[editingIndex] = updatedReport;
+    handleUpdateFlightField('reports', currentReports);
+    setEditingReport(null);
+    setEditingIndex(null);
+  };
+
+  const handleDeleteFromEditModal = () => {
+    if (editingIndex !== null) {
+      openDeleteReportModal(editingIndex);
+      setEditingReport(null);
+      setEditingIndex(null);
+    }
+  };
+
   return (
     <div className="space-y-4 max-w-xl mx-auto font-sans text-textMain relative pb-8">
-      {/* BARRA PEGAJOSA (siempre visible para evitar layout shift) */}
-      <StickyFlightBar flight={currentFlight} />
+      {/* Alerta de pantalla completa */}
+      {showFullScreenAlarm && (
+        <AlarmOverlay
+          flightNumber={currentFlight?.flightNumber}
+          cierrePuertasTime={currentFlight?.cierrePuerta || currentFlight?.cierrePuertasTime}
+          onDismiss={() => setShowFullScreenAlarm(false)}
+        />
+      )}
 
-      {/* SELECTOR DE VUELOS */}
+      <StickyFlightBar
+        flight={currentFlight}
+        onOpenAlarmModal={() => setIsAlarmModalOpen(true)}
+      />
+
       <FlightSelector
         selectedFlight={currentFlight}
         selectedDate={selectedDate}
@@ -86,7 +198,6 @@ export default function FlightItineraryView({
         onNewFlight={onNewFlight}
       />
 
-      {/* ALERTA DE ARRIBO (solo aparece si hay vuelos pero no hay hora de arribo registrada) */}
       {hasFlights && (
         <ArrivalAlert
           flight={currentFlight}
@@ -94,7 +205,6 @@ export default function FlightItineraryView({
         />
       )}
 
-      {/* CONTENIDO PRINCIPAL */}
       {hasFlights ? (
         <>
           <FlightHeader
@@ -105,12 +215,19 @@ export default function FlightItineraryView({
             onOpenGCEs={() => onOpenGce && onOpenGce(currentFlight)}
             isPinned={String(pinnedFlightId) === String(currentFlight.id)}
             onTogglePin={() => togglePin(currentFlight.id)}
+            onOpenAlarmModal={() => setIsAlarmModalOpen(true)}
           />
           <SpndCard
             spndList={currentFlight.spndList || []}
             onSaveSpnd={(updatedSpndList) => handleUpdateFlightField('spndList', updatedSpndList)}
             collapsible={true}
             defaultOpen={false}
+          />
+          <FlightReportsCard
+            reports={currentFlight?.reports || []}
+            onToggleComplete={handleToggleReportComplete}
+            onEditReport={handleOpenEditReport}
+            onDeleteReport={(index) => openDeleteReportModal(index)}
           />
           <PreflightCard
             flightData={currentFlight}
@@ -154,7 +271,7 @@ export default function FlightItineraryView({
         </div>
       )}
 
-      {/* MODAL DE ELIMINACIÓN DE REPORTES (CONTROLADO POR EL HOOK) */}
+      {/* MODAL DE ELIMINACIÓN DE REPORTES */}
       {deleteReportModal.isOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-bgCard border border-red-500/40 w-full max-w-xs rounded-2xl p-5 shadow-sm space-y-4 text-center">
@@ -188,6 +305,26 @@ export default function FlightItineraryView({
           </div>
         </div>
       )}
+
+      {/* Modal de Edición de Reportes */}
+      <EditReportModal
+        isOpen={!!editingReport}
+        initialData={editingReport}
+        onClose={() => {
+          setEditingReport(null);
+          setEditingIndex(null);
+        }}
+        onSave={handleSaveEditedReport}
+        onDelete={handleDeleteFromEditModal}
+      />
+
+      {/* Modal de Alarmas */}
+      <AlarmModal
+        isOpen={isAlarmModalOpen}
+        flight={currentFlight}
+        cierrePuertasTime={currentFlight?.cierrePuerta || currentFlight?.cierrePuertasTime}
+        onClose={() => setIsAlarmModalOpen(false)}
+      />
     </div>
   );
 }

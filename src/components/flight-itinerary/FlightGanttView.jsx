@@ -1,20 +1,19 @@
-import React, { useCallback, memo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFlightGantt } from '../../hooks/useFlightGantt';
 import BackButton from '../common/BackButton';
 import StickyFlightBar from '../common/StickyFlightBar';
 import { Search, X, Sparkles, RotateCcw } from 'lucide-react';
 
-const AIRCRAFT_TYPES = ['A320', 'A321', 'A320neo', 'A321neo', 'B787'];
-const FLIGHT_TYPES = ['DOM', 'INT'];
 const TAT_OPTIONS = [30, 35, 40, 45, 50, 60];
 
-function FlightGanttView({ flight, onBack, onUpdateFlight }) {
+export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
   const { state, actions } = useFlightGantt(flight, onUpdateFlight);
   const {
     selectedRoute,
     selectedAircraft,
     selectedFlightType,
     selectedTAT,
+    calculatedTAT,
     selectedTemplateOriginId,
     selectedTemplateDestId,
     originReason,
@@ -27,14 +26,29 @@ function FlightGanttView({ flight, onBack, onUpdateFlight }) {
     groundTimeCalculated,
     cierrePuertasHito,
     availableTemplates,
+    availableAircraftTypes,
     filteredMilestones
   } = state;
 
-  // ✅ Handler memoizado
-  const handleBackAndSave = useCallback(async () => {
+  const [autoTATEnabled, setAutoTATEnabled] = useState(true);
+
+  const handleBackAndSave = async () => {
     await actions.syncChangesToParent();
     if (onBack) onBack();
-  }, [actions, onBack]);
+  };
+
+  // Efecto para actualizar TAT cuando cambia el ground time
+  useEffect(() => {
+    if (autoTATEnabled && flight?.arriboAvion && flight.arriboAvion !== '--:--') {
+      const groundTimeMatch = groundTimeCalculated.match(/(\d+)/);
+      if (groundTimeMatch) {
+        const autoTAT = calculatedTAT;
+        if (autoTAT !== selectedTAT) {
+          actions.handleTATChange({ target: { value: autoTAT } });
+        }
+      }
+    }
+  }, [groundTimeCalculated, calculatedTAT, autoTATEnabled, flight?.arriboAvion, selectedTAT, actions]);
 
   return (
     <div className="bg-bgApp text-textMain min-h-screen p-3 sm:p-5 font-sans">
@@ -42,7 +56,7 @@ function FlightGanttView({ flight, onBack, onUpdateFlight }) {
         {/* BARRA PEGAJOSA DE FLIGHT INFO */}
         <StickyFlightBar flight={flight} />
         <BackButton onClick={handleBackAndSave} title="Volver a Control de Vuelos" />
-        
+
         {/* CARD PRINCIPAL CON CONTROLES */}
         <div className="bg-bgCard border-borderCard rounded-3xl p-4 border shadow-sm space-y-3">
           <div className="grid grid-cols-3 gap-2 text-center">
@@ -87,7 +101,7 @@ function FlightGanttView({ flight, onBack, onUpdateFlight }) {
                   onChange={actions.handleAircraftChange}
                   className="bg-bgInput border-borderCard text-textMain w-full border font-black text-xs rounded-xl py-1 text-center outline-none cursor-pointer"
                 >
-                  {AIRCRAFT_TYPES.map((type) => (
+                  {availableAircraftTypes.map((type) => (
                     <option key={type} value={type}>{type}</option>
                   ))}
                 </select>
@@ -109,7 +123,9 @@ function FlightGanttView({ flight, onBack, onUpdateFlight }) {
                   className="bg-bgInput border-borderCard text-cyberGreen w-full border font-black text-xs rounded-xl py-1 text-center outline-none font-mono cursor-pointer"
                 >
                   {TAT_OPTIONS.map((tat) => (
-                    <option key={tat} value={tat}>{tat} MIN</option>
+                    <option key={tat} value={tat}>
+                      {tat} MIN {calculatedTAT === tat ? '(Auto)' : ''}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -129,15 +145,35 @@ function FlightGanttView({ flight, onBack, onUpdateFlight }) {
                   onChange={actions.handleFlightTypeChange}
                   className="bg-bgInput border-borderCard text-cyberYellow w-full border font-black text-xs rounded-xl py-1 text-center outline-none font-mono cursor-pointer"
                 >
-                  {FLIGHT_TYPES.map((type) => (
-                    <option key={type} value={type}>{type}</option>
-                  ))}
+                  <option value="DOM">DOM</option>
+                  <option value="INT">INT</option>
                 </select>
               </div>
             </div>
           </div>
 
-          {/* COMBOBOXES DE CARTAS GANTT (ORIGEN Y DESTINO) */}
+          {/* Toggle para TAT automático */}
+          <div className="flex items-center justify-between bg-bgInput border border-borderCard rounded-xl p-2.5">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-cyberYellow" />
+              <span className="text-xs font-bold text-textMain">TAT Automático</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAutoTATEnabled(!autoTATEnabled)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                autoTATEnabled ? 'bg-cyberYellow' : 'bg-bgCardHeader'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  autoTATEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* COMBOBOXES DE CARTAS GANTT */}
           <div className="space-y-2 pt-1">
             <div className="bg-bgCardHeader border-borderCard rounded-2xl p-2.5 space-y-1 border">
               <label className="text-cyberCyan text-[10px] font-black uppercase block text-center">
@@ -274,6 +310,3 @@ function FlightGanttView({ flight, onBack, onUpdateFlight }) {
     </div>
   );
 }
-
-// ✅ Componente memoizado
-export default memo(FlightGanttView);

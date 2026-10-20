@@ -7,24 +7,39 @@ import TimeTile from '../common/TimeTile';
 import TimePickerModal from '../modals/TimePickerModal';
 import { useTimePicker } from '../../hooks/useTimePicker';
 import { GANTT_TEMPLATES, calculateMilestoneTimes } from '../../data/ganttTemplates';
-import { timeToMinutes, calculateDuration } from '../../utils/flightUtils';
+import { calculateDuration } from '../../utils/flightUtils';
 
-// ✅ Helper fuera del componente (ya estaba bien)
+// ✅ Helper fuera del componente
 const getGanttDepartureTimes = (flightData) => {
   if (!flightData) {
     return { aseoInicio: '--:--', aseoFin: '--:--', embInicio: '--:--', embFin: '--:--', cierrePuertas: '--:--' };
   }
+  
+  // Buscar template por ID de origen, luego por ID general, luego por tipo de avión
   const template =
+    GANTT_TEMPLATES.find((t) => t.id === flightData?.ganttTemplateOriginId) ||
     GANTT_TEMPLATES.find((t) => t.id === flightData?.ganttTemplateId) ||
     GANTT_TEMPLATES.find((t) => t.aircraftType?.toUpperCase() === flightData?.aircraftType?.toUpperCase()) ||
     GANTT_TEMPLATES[0];
+    
   const etd = flightData?.etd || flightData?.std || flightData?.departureTime || flightData?.scheduledDeparture || '--:--';
   const milestones = calculateMilestoneTimes(etd, template?.milestones || []);
+  
   const findHitoByKey = (key) => milestones.find((m) => m.key === key);
-  const hitoAseo = findHitoByKey('limpieza_cabina');
-  const hitoEmb = findHitoByKey('embarque_sala') || findHitoByKey('embarque_al_avion');
+  
+  const hitoAseo = findHitoByKey('limpieza_cabina') || findHitoByKey('limpieza_de_cabina');
+  
+  // ✅ CORREGIDO: buscar por múltiples claves posibles (sin anidar llamadas)
+  const hitoEmb = findHitoByKey('embarque_al_avion') ||
+                  findHitoByKey('llegada_pasajeros_avion') ||
+                  findHitoByKey('embarque_en_sala') || 
+                  findHitoByKey('embarque_sala'); 
+  
+                  
+  
   const hitoCP = findHitoByKey('cierre_puertas');
   const metaCierrePuerta = hitoCP?.calculatedTime || flightData?.cierrePuertasTime || '--:--';
+  
   return {
     aseoInicio: hitoAseo?.calculatedTime || '--:--',
     aseoFin: hitoAseo?.calculatedEndTime || '--:--',
@@ -55,10 +70,10 @@ function DepartureCard({ flightData, onUpdateFlight, defaultOpen = true }) {
     handleFieldClick(key, label, value);
   }, [handleFieldClick]);
 
-  // ✅ Cálculo de gantt memoizado (solo se recalcula si cambia flightData)
+  // ✅ Cálculo de gantt memoizado
   const gantt = useMemo(() => getGanttDepartureTimes(flightData), [flightData]);
 
-  // ✅ Duraciones memoizadas
+  // ✅ Duración de embarque memoizada
   const duracionEmbarqueReal = useMemo(
     () => calculateDuration(flightData?.inicioEmbPax, flightData?.finAcomodacion),
     [flightData?.inicioEmbPax, flightData?.finAcomodacion]
@@ -72,6 +87,7 @@ function DepartureCard({ flightData, onUpdateFlight, defaultOpen = true }) {
   return (
     <>
       <div className="bg-bgCard border border-borderCard rounded-2xl p-3.5 space-y-4 shadow-sm transition-all">
+        {/* ENCABEZADO */}
         <div
           onClick={() => setIsOpen(!isOpen)}
           className="flex items-center justify-between cursor-pointer select-none group"
@@ -199,6 +215,7 @@ function DepartureCard({ flightData, onUpdateFlight, defaultOpen = true }) {
         )}
       </div>
 
+      {/* ✅ Modal fuera del div principal, dentro del fragmento */}
       <TimePickerModal
         isOpen={modalConfig.isOpen}
         title={modalConfig.title}

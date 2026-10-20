@@ -1,16 +1,8 @@
 // src/components/layout/Sidebar.jsx
 import React from 'react';
-import { 
-  X, 
-  Plane, 
-  FileText, 
-  CheckSquare, 
-  RefreshCw, 
-  Settings, 
-  Calendar, 
-  ClipboardList, 
-  FileCheck,
-  BookOpen
+import {
+  X, Plane, FileText, CheckSquare, RefreshCw, Settings,
+  Calendar, ClipboardList, FileCheck, BookOpen, FolderOpen // ← Agregado FolderOpen
 } from 'lucide-react';
 import ThemeSelector from './ThemeSelector';
 
@@ -23,6 +15,7 @@ export default function Sidebar({ isOpen, onClose, currentTab, setCurrentTab }) 
     { id: 'reports', label: 'Gestión de Reportes', icon: ClipboardList },
     { id: 'gce', label: 'Gestión GCE', icon: FileCheck },
     { id: 'documents', label: 'Buscador de Manuales', icon: BookOpen },
+    { id: 'library', label: 'Biblioteca Docs', icon: FolderOpen }, // ← NUEVO
     { id: 'aircrafts', label: 'Gestión de Matrículas', icon: Settings },
     { id: 'briefing', label: 'Briefing y Documentos', icon: FileText },
     { id: 'checklist', label: 'Listas de Chequeo', icon: CheckSquare },
@@ -32,15 +25,14 @@ export default function Sidebar({ isOpen, onClose, currentTab, setCurrentTab }) 
   return (
     <div className="fixed inset-0 z-50 flex">
       {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black/80 backdrop-blur-md transition-opacity duration-300 animate-fadeIn" 
+      <div
+        className="fixed inset-0 bg-black/80 backdrop-blur-md transition-opacity duration-300 animate-fadeIn"
         onClick={onClose}
       />
-
+      
       {/* Contenedor Lateral táctico */}
       <div className="relative w-72 bg-bgCard border-r border-borderCard h-full p-4 flex flex-col justify-between z-10 shadow-2xl transition-all transform animate-slideInLeft">
         <div className="space-y-6">
-          
           {/* Header del Sidebar */}
           <div className="flex items-center justify-between border-b border-borderCard pb-3.5">
             <div className="flex items-center gap-2.5">
@@ -49,7 +41,6 @@ export default function Sidebar({ isOpen, onClose, currentTab, setCurrentTab }) 
                 Menú Principal
               </span>
             </div>
-            
             <button 
               type="button"
               onClick={onClose}
@@ -59,13 +50,12 @@ export default function Sidebar({ isOpen, onClose, currentTab, setCurrentTab }) 
               <X className="w-4 h-4" />
             </button>
           </div>
-
+          
           {/* Navegación Principal */}
           <nav className="space-y-1.5">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = currentTab === item.id;
-              
               return (
                 <button
                   key={item.id}
@@ -86,7 +76,6 @@ export default function Sidebar({ isOpen, onClose, currentTab, setCurrentTab }) 
                     }`} />
                     <span>{item.label}</span>
                   </div>
-
                   {isActive && (
                     <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
                   )}
@@ -95,7 +84,7 @@ export default function Sidebar({ isOpen, onClose, currentTab, setCurrentTab }) 
             })}
           </nav>
         </div>
-
+        
         {/* Pie con Selector de Tema */}
         <div className="border-t border-borderCard pt-4 mt-auto space-y-2.5">
           <span className="text-[10px] font-black uppercase tracking-wider block px-1 text-textSub">
@@ -105,7 +94,6 @@ export default function Sidebar({ isOpen, onClose, currentTab, setCurrentTab }) 
             <ThemeSelector />
           </div>
         </div>
-
       </div>
     </div>
   );

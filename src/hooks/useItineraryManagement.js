@@ -1,23 +1,20 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
+import { determineFlightType } from '../utils/airports'; // ← NUEVO
 
-// ---------------------------------------------------------------------------
-// 1. CONSTANTES Y UTILIDADES (fuera del hook, no se recrean)
-// ---------------------------------------------------------------------------
 const defaultAircrafts = [
   { tailNumber: 'CC-BBA', model: '787-9', notes: 'Crew Rest Modificado' },
   { tailNumber: 'CC-BER', model: 'A321', notes: 'Air Berlin' },
   { tailNumber: 'CC-BHZ', model: 'A320', notes: 'A320-NEO, Nueva Cabina' },
 ];
 
-// Fechas actuales (calculadas una sola vez al cargar el módulo)
+// ✅ Constantes fuera del hook
 const TODAY = new Date();
 const TODAY_STR = TODAY.toISOString().split('T')[0];
 const CURRENT_MONTH_STR = TODAY.toISOString().slice(0, 7);
 const CURRENT_YEAR_STR = TODAY.getFullYear().toString();
 
-// Estado inicial del formulario (fuera del hook para no recrearlo)
 const initialFormState = {
   date: TODAY_STR,
   flightNumber: 'LA',
@@ -27,7 +24,7 @@ const initialFormState = {
   eta: ''
 };
 
-// Helper puro para formatear fechas
+// ✅ Helper puro para formatear fechas
 export const formatDateDDMMYYYY = (dateStr) => {
   if (!dateStr) return '';
   const parts = dateStr.split('-');
@@ -35,7 +32,7 @@ export const formatDateDDMMYYYY = (dateStr) => {
   return `${parts[2]}-${parts[1]}-${parts[0]}`;
 };
 
-// Función pura para formatear número de vuelo
+// ✅ Función pura para formatear número de vuelo
 const formatFlightNumber = (val) => {
   let clean = val.toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (!clean.startsWith('LA')) clean = 'LA' + clean.replace(/^[A-Z]*/, '');
@@ -44,7 +41,7 @@ const formatFlightNumber = (val) => {
   return prefix + digits;
 };
 
-// Función pura para formatear ruta
+// ✅ Función pura para formatear ruta
 const formatRoute = (val) => {
   let clean = val.toUpperCase().replace(/[^A-Z]/g, '');
   if (clean.length > 6) clean = clean.slice(0, 6);
@@ -52,21 +49,17 @@ const formatRoute = (val) => {
   return clean;
 };
 
-// Generador de UUID con fallback
+// ✅ Generador de UUID con fallback
 const generateId = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  // Fallback para entornos sin crypto.randomUUID
   return 'flt-' + Math.random().toString(36).substring(2, 11);
 };
 
-// ---------------------------------------------------------------------------
-// 2. HOOK PRINCIPAL
-// ---------------------------------------------------------------------------
 export function useItineraryManagement() {
   // ---------------------------------------------------------------------------
-  // 2.1 ESTADOS AGRUPADOS
+  // 1. ESTADOS AGRUPADOS
   // ---------------------------------------------------------------------------
   const [formData, setFormData] = useState(initialFormState);
   const [editingFlightId, setEditingFlightId] = useState(null);
@@ -86,12 +79,12 @@ export function useItineraryManagement() {
   // Estado y Handlers para TimePickerModal
   const [timePickerConfig, setTimePickerConfig] = useState({
     isOpen: false,
-    field: null, // 'etd' | 'eta'
+    field: null,
     title: ''
   });
 
   // ---------------------------------------------------------------------------
-  // 2.2 CONSULTA DE MATRÍCULAS
+  // 2. CONSULTA DE MATRÍCULAS
   // ---------------------------------------------------------------------------
   const aircraftList = useLiveQuery(async () => {
     if (!db.aircrafts) return defaultAircrafts;
@@ -100,20 +93,18 @@ export function useItineraryManagement() {
   }) || defaultAircrafts;
 
   // ---------------------------------------------------------------------------
-  // 2.3 CONSULTA DE VUELOS OPTIMIZADA (con índices)
+  // 3. CONSULTA DE VUELOS OPTIMIZADA (con índices)
   // ---------------------------------------------------------------------------
   const flights = useLiveQuery(async () => {
     if (!db.flights) return [];
     
     let list;
     
-    // Filtrar por fecha usando índices (mucho más rápido que toArray + filter)
     if (filterMode === 'day' && filterDay) {
       list = await db.flights.where('date').equals(filterDay).toArray();
     } else if (filterMode === 'month' && filterMonth) {
-      // Para filtrar por mes, usamos between con el rango del mes
       const monthStart = `${filterMonth}-01`;
-      const monthEnd = `${filterMonth}-31`; // Dexie maneja esto correctamente
+      const monthEnd = `${filterMonth}-31`;
       list = await db.flights.where('date').between(monthStart, monthEnd, true, true).toArray();
     } else if (filterMode === 'year' && filterYear) {
       const yearStart = `${filterYear}-01-01`;
@@ -123,13 +114,11 @@ export function useItineraryManagement() {
       list = await db.flights.toArray();
     }
 
-    // Filtrar por número de vuelo (si aplica)
     if (filterFlight) {
       const query = filterFlight.trim().toLowerCase();
       list = list.filter((f) => (f.flightNumber || '').toLowerCase().includes(query));
     }
 
-    // Ordenar por fecha y hora de salida
     return list.sort((a, b) => {
       const dateA = (a.date || '') + (a.etd || '');
       const dateB = (b.date || '') + (b.etd || '');
@@ -138,11 +127,10 @@ export function useItineraryManagement() {
   }, [filterMode, filterDay, filterMonth, filterYear, filterFlight]) || [];
 
   // ---------------------------------------------------------------------------
-  // 2.4 AERONAVES FILTRADAS (memoizadas)
+  // 4. AERONAVES FILTRADAS (memoizadas)
   // ---------------------------------------------------------------------------
   const filteredAircrafts = useMemo(() => {
     if (!tailSearchQuery.trim()) return aircraftList;
-    
     const query = tailSearchQuery.toLowerCase();
     return aircraftList.filter((ac) =>
       ac.tailNumber?.toLowerCase().includes(query) ||
@@ -152,7 +140,7 @@ export function useItineraryManagement() {
   }, [aircraftList, tailSearchQuery]);
 
   // ---------------------------------------------------------------------------
-  // 2.5 HANDLERS MEMOIZADOS
+  // 5. HANDLERS MEMOIZADOS
   // ---------------------------------------------------------------------------
   const handleFlightNumberChange = useCallback((val) => {
     const formatted = formatFlightNumber(val);
@@ -181,12 +169,19 @@ export function useItineraryManagement() {
     setFormData(initialFormState);
   }, []);
 
+  // ✅ NUEVO: handleSubmit con detección automática de DOM/INT
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     if (!formData.flightNumber || formData.flightNumber === 'LA' || !formData.route) {
       alert('Por favor completa el número de vuelo y la ruta.');
       return;
     }
+
+    // ✅ NUEVO: Extraer origen y destino de la ruta para determinar DOM/INT
+    const routeParts = formData.route.split('-');
+    const origin = routeParts[0] || '';
+    const destination = routeParts[1] || '';
+    const flightType = determineFlightType(origin, destination);
 
     try {
       if (editingFlightId) {
@@ -197,6 +192,9 @@ export function useItineraryManagement() {
           tailNumber: formData.tailNumber,
           etd: formData.etd || '00:00',
           eta: formData.eta || '00:00',
+          origin,
+          destination,
+          flightType, // ✅ NUEVO: Tipo de vuelo automático
           synced: false
         });
         setEditingFlightId(null);
@@ -214,6 +212,9 @@ export function useItineraryManagement() {
           onPista: '--:--',
           totalPax: 0,
           spndList: [],
+          origin,
+          destination,
+          flightType, // ✅ NUEVO: Tipo de vuelo automático
           synced: false
         };
         await db.flights.add(newFlight);
@@ -226,7 +227,6 @@ export function useItineraryManagement() {
 
   const confirmDeleteFlight = useCallback(async () => {
     if (!flightToDeleteId) return;
-
     try {
       await db.flights.delete(flightToDeleteId);
       if (editingFlightId === flightToDeleteId) handleCancelEdit();
@@ -261,7 +261,7 @@ export function useItineraryManagement() {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // 2.6 RETURN
+  // 6. RETURN
   // ---------------------------------------------------------------------------
   return {
     formData,

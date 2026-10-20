@@ -6,10 +6,10 @@ import SpndModal from '../modals/SpndModal';
 const SpndBadgeVertical = memo(function SpndBadgeVertical({ code, count }) {
   return (
     <div className="flex flex-col items-center justify-center min-w-[46px] px-2.5 py-1.5 rounded-xl bg-bgInput border border-borderCard shadow-sm select-none hover:border-cyberCyan/40 transition-all">
-      <span className="text-[10px] font-mono font-black text-cyberCyan tracking-wider leading-none">
+      <span className="text-[12px] font-mono font-black text-cyberCyan tracking-wider leading-none">
         {code}
       </span>
-      <span className="text-xs font-mono font-black text-cyberYellow leading-none pt-1">
+      <span className="text-base font-mono font-black text-cyberYellow leading-none pt-1">
         {count}
       </span>
     </div>

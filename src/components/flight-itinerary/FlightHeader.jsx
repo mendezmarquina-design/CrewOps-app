@@ -1,5 +1,5 @@
-import React, { useState, memo, useMemo, useCallback } from 'react';
-import { FileText, BarChart2, Users, X, ChevronDown, ChevronUp, Users as UsersIcon } from 'lucide-react';
+import React, { useState, memo, useMemo, useCallback, useEffect } from 'react';
+import { FileText, BarChart2, Users, X, ChevronDown, ChevronUp, Users as UsersIcon, Bell } from 'lucide-react';
 import TimePickerModal from '../modals/TimePickerModal';
 import SelectAircraftModal from '../modals/SelectAircraftModal';
 import { calculateDelay, calculateMinutesDifference } from '../../utils/flightUtils';
@@ -9,12 +9,28 @@ function FlightHeader({
   itineraryController,
   onOpenBriefing,
   onOpenGantt,
-  onOpenGCEs
+  onOpenGCEs,
+  onOpenAlarmModal
 }) {
-  // ✨ Estado para controlar si el header está desplegado (falso por defecto)
   const [isOpen, setIsOpen] = useState(false);
 
-  // ✅ Memoizar cálculos de validación y demoras
+  // ✅ FIX #2: Verificar toggle Y minutos configurados
+  const [alarmActive, setAlarmActive] = useState(() => {
+    const isEnabled = localStorage.getItem('doorCloseAlarm') === 'true';
+    const hasMinutes = localStorage.getItem('alarmMinutesList');
+    return isEnabled && hasMinutes;
+  });
+
+  useEffect(() => {
+    const checkAlarm = () => {
+      const isEnabled = localStorage.getItem('doorCloseAlarm') === 'true';
+      const hasMinutes = localStorage.getItem('alarmMinutesList');
+      setAlarmActive(isEnabled && hasMinutes);
+    };
+    const interval = setInterval(checkAlarm, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
   const isArriboAvionValid = useMemo(() => {
     return Boolean(
       flight?.arriboAvion &&
@@ -33,22 +49,13 @@ function FlightHeader({
     [flight?.eta, flight?.ata]
   );
 
-  // ✅ NUEVO: Cálculo de TAT (ETD - Arribo Avión)
   const tatDisplay = useMemo(() => {
     if (!isArriboAvionValid || !flight?.etd) return '--';
     const minutes = calculateMinutesDifference(flight.arriboAvion, flight.etd);
     if (minutes === null || minutes < 0) return '--';
-    
-    // Formatear: si es más de 60 min, mostrar horas y minutos
-    if (minutes >= 60) {
-      const hours = Math.floor(minutes / 60);
-      const mins = minutes % 60;
-      return `${hours}h ${mins}m`;
-    }
     return `${minutes} min`;
   }, [isArriboAvionValid, flight?.arriboAvion, flight?.etd]);
 
-  // Extraer acciones del controlador
   const {
     flightPrefix,
     flightNumberOnly,
@@ -66,7 +73,6 @@ function FlightHeader({
     handleSelectAircraft
   } = itineraryController;
 
-  // ✅ Handlers memoizados
   const handleOpenAircraftModal = useCallback(() => {
     setIsAircraftModalOpen(true);
   }, [setIsAircraftModalOpen]);
@@ -124,38 +130,51 @@ function FlightHeader({
         >
           {/* LADO IZQUIERDO: Vuelo, Ruta, Matrícula */}
           <div className="flex items-center gap-3 min-w-0">
-            <div className="bg-bgInput border border-borderCard p-2 rounded-xl shrink-0 flex items-center justify-center text-textPrincipal">
+            {/* Número de vuelo clickeable para abrir modal de alarmas */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onOpenAlarmModal) {
+                  onOpenAlarmModal();
+                }
+              }}
+              className="bg-bgInput border border-borderCard hover:border-cyberYellow/50 p-2 rounded-xl shrink-0 flex items-center justify-center text-textPrincipal transition-all cursor-pointer relative"
+              title="Configurar alarmas de cierre de puertas"
+            >
               <span className="text-sm font-black text-cyberCoral font-mono italic">
                 {flightPrefix}{flightNumberOnly || '777'}
               </span>
-            </div>
+              {/* ✅ FIX #2: Campana solo si hay alarmas configuradas */}
+              {alarmActive && (
+                <Bell className="w-3 h-3 text-cyberYellow animate-pulse absolute -top-1 -right-1" />
+              )}
+            </button>
             <div className="min-w-0">
               <p className="text-xs font-mono font-bold text-cyberCyan truncate">
                 {flight.route || '---'}
               </p>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-bold text-textSub">Matrícula:</span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleOpenAircraftModal();
-                  }}
-                  className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded transition-all ${
-                    hasTailNumber
-                      ? 'text-cyberYellow hover:text-cyberCyan hover:bg-cyberCyan/10'
-                      : 'text-cyberCoral bg-cyberCoral/10 border border-cyberCoral/30 animate-pulse hover:bg-cyberCoral/20'
-                  }`}
-                >
-                  {hasTailNumber ? flight.tailNumber : 'Sin matrícula'}
-                </button>
-              </div>
+              {/* Matrícula más grande, sin etiqueta "Matrícula:" */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenAircraftModal();
+                }}
+                className={`mt-1 text-xs font-black font-mono px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                  hasTailNumber
+                    ? 'text-cyberYellow bg-cyberYellow/10 border border-cyberYellow/30 hover:bg-cyberYellow/20 hover:border-cyberYellow/60'
+                    : 'text-cyberCoral bg-cyberCoral/15 border-2 border-cyberCoral/50 animate-pulse hover:bg-cyberCoral/25'
+                }`}
+                title={hasTailNumber ? 'Cambiar matrícula' : 'Asignar matrícula'}
+              >
+                {hasTailNumber ? flight.tailNumber : 'Asignar Matrícula'}
+              </button>
             </div>
           </div>
           
-          {/* LADO DERECHO: Total PAX (más prominente) + Chevron */}
+          {/* LADO DERECHO: Total PAX + Chevron */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* ✨ Botón Total PAX con más espacio horizontal */}
             <button
               type="button"
               onClick={(e) => {
@@ -175,8 +194,6 @@ function FlightHeader({
                 </span>
               </div>
             </button>
-
-            {/* Chevron (sin el indicador circular) */}
             {isOpen ? (
               <ChevronUp className="w-5 h-5 text-textSub shrink-0" />
             ) : (
@@ -278,7 +295,6 @@ function FlightHeader({
                     </span>
                   </button>
                 </div>
-                {/* ✅ TAT (Turn Around Time) */}
                 <div>
                   <span className="text-[9px] font-bold text-textPrincipal uppercase tracking-wider block mb-1">
                     TAT
@@ -337,7 +353,6 @@ function FlightHeader({
                 </div>
               </div>
             </div>
-
           </div>
         )}
       </div>
@@ -406,5 +421,4 @@ function FlightHeader({
   );
 }
 
-// ✅ Componente memoizado
 export default memo(FlightHeader);

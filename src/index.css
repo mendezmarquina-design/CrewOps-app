@@ -215,3 +215,11 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+@keyframes bounce-slow {
+  0%, 100% { transform: translateY(-5%); }
+  50% { transform: translateY(5%); }
+}
+.animate-bounce-slow {
+  animation: bounce-slow 2s infinite ease-in-out;
+}

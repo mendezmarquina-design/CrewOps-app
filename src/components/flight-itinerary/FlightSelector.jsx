@@ -1,17 +1,12 @@
 // src/components/flight-itinerary/FlightSelector.jsx
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { db } from '../../db';
 import {
   Calendar as CalendarIcon,
-  Upload,
   Plus,
   Pin,
   ChevronLeft,
-  ChevronRight,
-  CheckCircle2,
-  AlertCircle
+  ChevronRight
 } from 'lucide-react';
-import { parseRosterIcs } from '../../utils/flightUtils';
 
 // Configuración del gesto de swipe
 const SWIPE_THRESHOLD = 50; // px mínimos para considerar un swipe válido
@@ -42,14 +37,6 @@ export default function FlightSelector({
   const flightListRef = useRef(null); // Ref de la lista de vuelos (para excluirla del swipe)
   const touchStartRef = useRef(null);
   const [swipeDirection, setSwipeDirection] = useState(null);
-
-  // Modal para alertas de importación .ics
-  const [importModal, setImportModal] = useState({
-    isOpen: false,
-    title: '',
-    message: '',
-    type: 'success'
-  });
 
   // Cerrar el calendario al hacer clic fuera
   useEffect(() => {
@@ -90,7 +77,6 @@ export default function FlightSelector({
       touchStartRef.current = null;
       return;
     }
-
     const touch = e.touches[0];
     touchStartRef.current = {
       x: touch.clientX,
@@ -102,7 +88,6 @@ export default function FlightSelector({
   const handleCardTouchEnd = useCallback((e) => {
     // Si el touch inició en la lista de vuelos, no hacer nada
     if (!touchStartRef.current) return;
-
     // Si el calendario está abierto, no aplicar swipe (evitar cambios accidentales)
     if (isCalendarOpen) return;
 
@@ -130,44 +115,6 @@ export default function FlightSelector({
       }
     }
   }, [currentDateStr, onDateChange, isCalendarOpen]);
-
-  const handleIcsUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const parsedFlights = parseRosterIcs(text);
-      if (parsedFlights.length > 0) {
-        await db.flights.bulkPut(parsedFlights);
-        setImportModal({
-          isOpen: true,
-          title: 'IMPORTACIÓN EXITOSA',
-          message: `¡Éxito! Se importaron ${parsedFlights.length} tramos de vuelo correctamente.`,
-          type: 'success'
-        });
-      } else {
-        setImportModal({
-          isOpen: true,
-          title: 'SIN RESULTADOS',
-          message: 'No se encontraron tramos de vuelo válidos en el archivo seleccionado.',
-          type: 'error'
-        });
-      }
-    } catch (err) {
-      console.error('Error al procesar .ics:', err);
-      setImportModal({
-        isOpen: true,
-        title: 'ERROR AL IMPORTAR',
-        message: 'Ocurrió un error al leer el archivo .ics.',
-        type: 'error'
-      });
-    }
-    e.target.value = '';
-  };
-
-  const closeImportModal = useCallback(() => {
-    setImportModal((prev) => ({ ...prev, isOpen: false }));
-  }, []);
 
   // --- LÓGICA DEL CALENDARIO PERSONALIZADO ---
   const handleMonthChange = (offset) => {
@@ -218,139 +165,131 @@ export default function FlightSelector({
         onTouchStart={handleCardTouchStart}
         onTouchEnd={handleCardTouchEnd}
       >
-        {/* Contenedor de Fecha e Importador */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <div className="flex items-center justify-between gap-2 flex-1 relative" ref={calendarRef}>
-            {/* Día Anterior */}
-            <button
-              type="button"
-              onClick={() => handleDayShift(-1)}
-              title="Día anterior"
-              className="h-11 w-11 flex items-center justify-center rounded-xl bg-bgInput border border-borderCard text-textSub hover:text-cyberCyan hover:border-cyberCyan/40 active:scale-95 transition-all shrink-0 cursor-pointer shadow-xs"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
+        {/* Contenedor de Fecha */}
+        <div className="flex items-center justify-between gap-2 flex-1 relative" ref={calendarRef}>
+          {/* Día Anterior */}
+          <button
+            type="button"
+            onClick={() => handleDayShift(-1)}
+            title="Día anterior"
+            className="h-11 w-11 flex items-center justify-center rounded-xl bg-bgInput border border-borderCard text-textSub hover:text-cyberCyan hover:border-cyberCyan/40 active:scale-95 transition-all shrink-0 cursor-pointer shadow-xs"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
 
-            {/* BOTÓN CALENDARIO */}
-            <button
-              type="button"
-              onClick={() => setIsCalendarOpen(!isCalendarOpen)}
-              className={`flex-1 h-11 bg-bgInput border rounded-xl px-3 flex items-center justify-center gap-2 transition-all cursor-pointer select-none active:scale-95 ${
-                isCalendarOpen
-                  ? 'border-cyberCyan shadow-[0_0_10px_rgba(6,182,212,0.25)]'
-                  : 'border-borderCard hover:border-cyberCyan/40'
-              }`}
-            >
-              <CalendarIcon className="w-4 h-4 text-cyberCyan shrink-0" />
-              <span className="text-sm font-bold font-mono text-textPrincipal tracking-wider">
-                {formatDateToDDMMYY(currentDateStr)}
-              </span>
-            </button>
+          {/* BOTÓN CALENDARIO */}
+          <button
+            type="button"
+            onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+            className={`flex-1 h-11 bg-bgInput border rounded-xl px-3 flex items-center justify-center gap-2 transition-all cursor-pointer select-none active:scale-95 ${
+              isCalendarOpen
+                ? 'border-cyberCyan shadow-[0_0_10px_rgba(6,182,212,0.25)]'
+                : 'border-borderCard hover:border-cyberCyan/40'
+            }`}
+          >
+            <CalendarIcon className="w-4 h-4 text-cyberCyan shrink-0" />
+            <span className="text-sm font-bold font-mono text-textPrincipal tracking-wider">
+              {formatDateToDDMMYY(currentDateStr)}
+            </span>
+          </button>
 
-            {/* POPUP / MODAL DEL CALENDARIO DARK THEME */}
-            {isCalendarOpen && (
-              <div className="absolute top-13 left-1/2 -translate-x-1/2 z-50 w-72 bg-bgCard border border-borderCard rounded-2xl p-4 shadow-2xl animate-scaleUp">
-                <div className="flex items-center justify-between mb-3">
-                  <button
-                    type="button"
-                    onClick={() => handleMonthChange(-1)}
-                    className="p-1 rounded-lg bg-bgInput border border-borderCard text-textSub hover:text-cyberCyan transition-all cursor-pointer"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <span className="text-xs font-bold text-textPrincipal uppercase tracking-wide">
-                    {monthNames[month]} {year}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleMonthChange(1)}
-                    className="p-1 rounded-lg bg-bgInput border border-borderCard text-textSub hover:text-cyberCyan transition-all cursor-pointer"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-7 gap-1 text-center mb-1">
-                  {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'].map((d) => (
-                    <span key={d} className="text-[10px] font-bold text-textSub uppercase">
-                      {d}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-7 gap-1">
-                  {Array.from({ length: firstDayOfWeek }).map((_, i) => (
-                    <div key={`empty-${i}`} />
-                  ))}
-                  {Array.from({ length: daysInMonth }).map((_, i) => {
-                    const dayNumber = i + 1;
-                    const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
-                    const isSelected = dayStr === currentDateStr;
-                    const today = new Date();
-                    const isToday =
-                      today.getFullYear() === year &&
-                      today.getMonth() === month &&
-                      today.getDate() === dayNumber;
-                    return (
-                      <button
-                        key={dayNumber}
-                        type="button"
-                        onClick={() => handleSelectDay(dayNumber)}
-                        className={`h-8 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer flex items-center justify-center ${
-                          isSelected
-                            ? 'bg-cyberCyan text-black font-black shadow-[0_0_8px_rgba(6,182,212,0.6)]'
-                            : isToday
-                            ? 'border border-cyberCyan text-cyberCyan bg-cyberCyan/10'
-                            : 'text-textMain hover:bg-bgInput hover:text-cyberCyan'
-                        }`}
-                      >
-                        {dayNumber}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-3 pt-2 border-t border-borderCard/50 flex justify-between items-center">
-                  <button
-                    type="button"
-                    onClick={handleSelectToday}
-                    className="text-[10px] font-bold text-cyberCyan hover:underline cursor-pointer uppercase tracking-wider"
-                  >
-                    Ir a Hoy
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsCalendarOpen(false)}
-                    className="text-[10px] font-bold text-textSub hover:text-textMain cursor-pointer uppercase tracking-wider"
-                  >
-                    Cerrar
-                  </button>
-                </div>
+          {/* POPUP / MODAL DEL CALENDARIO DARK THEME */}
+          {isCalendarOpen && (
+            <div className="absolute top-13 left-1/2 -translate-x-1/2 z-50 w-72 bg-bgCard border border-borderCard rounded-2xl p-4 shadow-2xl animate-scaleUp">
+              {/* Header del Calendario */}
+              <div className="flex items-center justify-between mb-3">
+                <button
+                  type="button"
+                  onClick={() => handleMonthChange(-1)}
+                  className="p-1 rounded-lg bg-bgInput border border-borderCard text-textSub hover:text-cyberCyan transition-all cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-xs font-bold text-textPrincipal uppercase tracking-wide">
+                  {monthNames[month]} {year}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleMonthChange(1)}
+                  className="p-1 rounded-lg bg-bgInput border border-borderCard text-textSub hover:text-cyberCyan transition-all cursor-pointer"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
-            )}
 
-            {/* Día Siguiente */}
-            <button
-              type="button"
-              onClick={() => handleDayShift(1)}
-              title="Día siguiente"
-              className="h-11 w-11 flex items-center justify-center rounded-xl bg-bgInput border border-borderCard text-textSub hover:text-cyberCyan hover:border-cyberCyan/40 active:scale-95 transition-all shrink-0 cursor-pointer shadow-xs"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
+              {/* Días de la semana */}
+              <div className="grid grid-cols-7 gap-1 text-center mb-1">
+                {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'].map((d) => (
+                  <span key={d} className="text-[10px] font-bold text-textSub uppercase">
+                    {d}
+                  </span>
+                ))}
+              </div>
 
-          {/* Importar .ics */}
-          <label className="h-11 bg-cyberCyan/10 hover:bg-cyberCyan/20 border border-cyberCyan/30 text-cyberCyan px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 shrink-0 shadow-xs w-full sm:w-auto">
-            <Upload className="w-4 h-4 text-cyberCyan" />
-            <span>Importar .ics</span>
-            <input
-              type="file"
-              accept=".ics"
-              onChange={handleIcsUpload}
-              className="hidden"
-            />
-          </label>
+              {/* Grilla de Días */}
+              <div className="grid grid-cols-7 gap-1">
+                {/* Espacios vacíos mes anterior */}
+                {Array.from({ length: firstDayOfWeek }).map((_, i) => (
+                  <div key={`empty-${i}`} />
+                ))}
+                {/* Días del mes actual */}
+                {Array.from({ length: daysInMonth }).map((_, i) => {
+                  const dayNumber = i + 1;
+                  const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
+                  const isSelected = dayStr === currentDateStr;
+                  const today = new Date();
+                  const isToday =
+                    today.getFullYear() === year &&
+                    today.getMonth() === month &&
+                    today.getDate() === dayNumber;
+                  return (
+                    <button
+                      key={dayNumber}
+                      type="button"
+                      onClick={() => handleSelectDay(dayNumber)}
+                      className={`h-8 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer flex items-center justify-center ${
+                        isSelected
+                          ? 'bg-cyberCyan text-black font-black shadow-[0_0_8px_rgba(6,182,212,0.6)]'
+                          : isToday
+                          ? 'border border-cyberCyan text-cyberCyan bg-cyberCyan/10'
+                          : 'text-textMain hover:bg-bgInput hover:text-cyberCyan'
+                      }`}
+                    >
+                      {dayNumber}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Footer Botón Hoy */}
+              <div className="mt-3 pt-2 border-t border-borderCard/50 flex justify-between items-center">
+                <button
+                  type="button"
+                  onClick={handleSelectToday}
+                  className="text-[10px] font-bold text-cyberCyan hover:underline cursor-pointer uppercase tracking-wider"
+                >
+                  Ir a Hoy
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsCalendarOpen(false)}
+                  className="text-[10px] font-bold text-textSub hover:text-textMain cursor-pointer uppercase tracking-wider"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Día Siguiente */}
+          <button
+            type="button"
+            onClick={() => handleDayShift(1)}
+            title="Día siguiente"
+            className="h-11 w-11 flex items-center justify-center rounded-xl bg-bgInput border border-borderCard text-textSub hover:text-cyberCyan hover:border-cyberCyan/40 active:scale-95 transition-all shrink-0 cursor-pointer shadow-xs"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Hint visual de swipe (solo en móvil) */}
@@ -438,48 +377,6 @@ export default function FlightSelector({
           </div>
         </div>
       </div>
-
-      {/* MODAL PERSONALIZADO DE IMPORTACIÓN */}
-      {importModal.isOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn"
-          onClick={closeImportModal}
-        >
-          <div
-            className="bg-bgCard border border-borderCard text-textMain rounded-3xl max-w-sm w-full p-6 shadow-2xl flex flex-col items-center text-center space-y-4 animate-scaleUp"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className={`w-16 h-16 rounded-full flex items-center justify-center shadow-sm border ${
-              importModal.type === 'success'
-                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                : 'bg-cyberCoral/10 border-cyberCoral/20 text-cyberCoral'
-            }`}>
-              {importModal.type === 'success' ? (
-                <CheckCircle2 className="w-8 h-8 stroke-[1.75]" />
-              ) : (
-                <AlertCircle className="w-8 h-8 stroke-[1.75]" />
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <h3 className="text-base font-black text-cyberCyan uppercase tracking-tight">
-                {importModal.title}
-              </h3>
-              <p className="text-xs text-textSub font-medium leading-relaxed">
-                {importModal.message}
-              </p>
-            </div>
-            <div className="w-full pt-2">
-              <button
-                type="button"
-                onClick={closeImportModal}
-                className="w-full bg-cyberCyan/20 hover:bg-cyberCyan/30 border border-cyberCyan/40 text-textMain font-bold text-xs py-3 px-4 rounded-2xl transition-all cursor-pointer active:scale-95"
-              >
-                ACEPTAR
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

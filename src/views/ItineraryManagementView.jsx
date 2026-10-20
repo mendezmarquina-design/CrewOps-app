@@ -1,16 +1,21 @@
 // src/views/ItineraryManagementView.jsx
-import React, { useRef } from 'react';
-import { 
-  PlusCircle, 
-  Calendar, 
-  Search, 
-  Trash2, 
+import React, { useRef, useState, useCallback } from 'react';
+import {
+  PlusCircle,
+  Calendar,
+  Search,
+  Trash2,
   Plus,
   Edit3,
   Save,
   RotateCcw,
-  Clock
+  Clock,
+  Upload,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
+import { db } from '../db';
+import { parseRosterIcs } from '../utils/flightUtils';
 import BackButton from '../components/common/BackButton';
 import { useItineraryManagement, formatDateDDMMYYYY } from '../hooks/useItineraryManagement';
 import { TailNumberModal, DeleteConfirmationModal, TimePickerModal } from '../components/modals/ItineraryModals';
@@ -50,11 +55,58 @@ export default function ItineraryManagementView({ onBack }) {
     confirmDeleteFlight
   } = useItineraryManagement();
 
+  // ✨ NUEVO: Estado y lógica para importación .ics
+  const [importModal, setImportModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'success'
+  });
+
+  const fileInputRef = useRef(null);
+
+  const handleIcsUpload = useCallback(async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsedFlights = parseRosterIcs(text);
+      if (parsedFlights.length > 0) {
+        await db.flights.bulkPut(parsedFlights);
+        setImportModal({
+          isOpen: true,
+          title: 'IMPORTACIÓN EXITOSA',
+          message: `¡Éxito! Se importaron ${parsedFlights.length} tramos de vuelo correctamente.`,
+          type: 'success'
+        });
+      } else {
+        setImportModal({
+          isOpen: true,
+          title: 'SIN RESULTADOS',
+          message: 'No se encontraron tramos de vuelo válidos en el archivo seleccionado.',
+          type: 'error'
+        });
+      }
+    } catch (err) {
+      console.error('Error al procesar .ics:', err);
+      setImportModal({
+        isOpen: true,
+        title: 'ERROR AL IMPORTAR',
+        message: 'Ocurrió un error al leer el archivo .ics.',
+        type: 'error'
+      });
+    }
+    e.target.value = '';
+  }, []);
+
+  const closeImportModal = useCallback(() => {
+    setImportModal((prev) => ({ ...prev, isOpen: false }));
+  }, []);
+
   // Referencias para forzar despliegue de selectores al presionar cualquier punto
   const formDateRef = useRef(null);
   const filterDayRef = useRef(null);
   const filterMonthRef = useRef(null);
-
   const openPicker = (ref) => {
     if (ref.current) {
       if ('showPicker' in HTMLInputElement.prototype) {
@@ -74,7 +126,6 @@ export default function ItineraryManagementView({ onBack }) {
 
   return (
     <div className="max-w-md mx-auto space-y-4 pb-10 text-textPrincipal font-sans transition-colors duration-200">
-      
       {/* Botón Volver Reutilizable */}
       <BackButton onClick={onBack} />
 
@@ -84,9 +135,7 @@ export default function ItineraryManagementView({ onBack }) {
           {editingFlightId ? <Edit3 className="w-4 h-4" /> : <PlusCircle className="w-4 h-4" />}
           <span>{editingFlightId ? 'Editar Vuelo Seleccionado' : 'Agregar Nuevo Vuelo al Itinerario'}</span>
         </div>
-
         <form onSubmit={handleSubmit} className="space-y-3.5">
-          
           {/* Fecha de Vuelo */}
           <div className="space-y-1">
             <label className="text-[9px] font-extrabold text-textSub uppercase tracking-wider block">
@@ -127,7 +176,6 @@ export default function ItineraryManagementView({ onBack }) {
                 />
               </div>
             </div>
-
             <div>
               <label className="text-[9px] font-extrabold text-textSub uppercase tracking-wider block mb-1 text-center">
                 Ruta / Tramo
@@ -141,7 +189,6 @@ export default function ItineraryManagementView({ onBack }) {
                 className="bg-bgInput border border-borderCard rounded-2xl h-11 text-center text-cyberCyan font-extrabold text-xs tracking-wider w-full focus:outline-none focus:border-cyberCyan/50 px-2 placeholder:text-textSub placeholder:font-bold"
               />
             </div>
-
             <div>
               <label className="text-[9px] font-extrabold text-textSub uppercase tracking-wider block mb-1 text-center">
                 Matrícula
@@ -171,7 +218,6 @@ export default function ItineraryManagementView({ onBack }) {
                 <span>{formData.etd || '-- : --'}</span>
               </button>
             </div>
-
             <div>
               <label className="text-[9px] font-extrabold text-textSub uppercase tracking-wider block mb-1 text-center">
                 ETA (Hora Llegada)
@@ -215,7 +261,6 @@ export default function ItineraryManagementView({ onBack }) {
               <span>Guardar Vuelo</span>
             </button>
           )}
-
         </form>
       </div>
 
@@ -226,6 +271,18 @@ export default function ItineraryManagementView({ onBack }) {
             <Calendar className="w-4 h-4" />
             <span>Vuelos Programados ({flights.length})</span>
           </div>
+          {/* ✨ NUEVO: Botón de Importar .ics */}
+          <label className="flex items-center gap-1.5 bg-cyberCyan/10 hover:bg-cyberCyan/20 border border-cyberCyan/30 text-cyberCyan px-2.5 py-1.5 rounded-xl text-[10px] font-bold cursor-pointer transition-all active:scale-95">
+            <Upload className="w-3.5 h-3.5 text-cyberCyan" />
+            <span>Importar Roster</span>
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept=".ics"
+              onChange={handleIcsUpload}
+              className="hidden"
+            />
+          </label>
         </div>
 
         {/* Selector de Filtro de Modo */}
@@ -252,7 +309,6 @@ export default function ItineraryManagementView({ onBack }) {
             <span className="text-[9px] font-extrabold text-textSub uppercase tracking-wider block text-center">
               Filtro de Fecha
             </span>
-
             {filterMode === 'day' && (
               <button
                 type="button"
@@ -271,7 +327,6 @@ export default function ItineraryManagementView({ onBack }) {
                 />
               </button>
             )}
-
             {filterMode === 'month' && (
               <button
                 type="button"
@@ -290,7 +345,6 @@ export default function ItineraryManagementView({ onBack }) {
                 />
               </button>
             )}
-
             {filterMode === 'year' && (
               <div className="bg-bgInput border border-borderCard rounded-2xl px-3 h-10 flex items-center justify-center focus-within:border-cyberCyan/50">
                 <input
@@ -303,14 +357,12 @@ export default function ItineraryManagementView({ onBack }) {
                 />
               </div>
             )}
-
             {filterMode === 'all' && (
               <div className="bg-bgInput/50 border border-borderCard rounded-2xl px-3 h-10 flex items-center justify-center text-xs text-textPrincipal font-bold font-mono select-none">
                 Todos los Vuelos
               </div>
             )}
           </div>
-
           <div className="space-y-1">
             <span className="text-[9px] font-extrabold text-textSub uppercase tracking-wider block text-center">
               N° Vuelo
@@ -346,7 +398,6 @@ export default function ItineraryManagementView({ onBack }) {
                   <span className="text-xs font-extrabold text-cyberCyan font-mono block tracking-wide">
                     {formatDateDDMMYYYY(f.date)}
                   </span>
-
                   <div className="text-xs font-bold flex items-center gap-2 flex-wrap">
                     <span className="text-cyberYellow italic font-black text-xs">
                       {f.flightNumber}
@@ -361,7 +412,6 @@ export default function ItineraryManagementView({ onBack }) {
                     )}
                   </div>
                 </div>
-
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
@@ -378,7 +428,6 @@ export default function ItineraryManagementView({ onBack }) {
               </div>
             );
           })}
-
           {flights.length === 0 && (
             <p className="text-center text-xs text-textSub italic py-4">
               No hay vuelos que coincidan con el filtro seleccionado.
@@ -400,13 +449,11 @@ export default function ItineraryManagementView({ onBack }) {
           setTailSearchQuery('');
         }}
       />
-
       <DeleteConfirmationModal
         isOpen={Boolean(flightToDeleteId)}
         onClose={() => setFlightToDeleteId(null)}
         onConfirm={confirmDeleteFlight}
       />
-
       <TimePickerModal
         isOpen={timePickerConfig.isOpen}
         title={timePickerConfig.title}
@@ -417,6 +464,47 @@ export default function ItineraryManagementView({ onBack }) {
         onSave={handleSaveTime}
       />
 
+      {/* ✨ NUEVO: Modal de resultado de importación .ics */}
+      {importModal.isOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn"
+          onClick={closeImportModal}
+        >
+          <div
+            className="bg-bgCard border border-borderCard text-textMain rounded-3xl max-w-sm w-full p-6 shadow-2xl flex flex-col items-center text-center space-y-4 animate-scaleUp"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center shadow-sm border ${
+              importModal.type === 'success'
+                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                : 'bg-cyberCoral/10 border-cyberCoral/20 text-cyberCoral'
+            }`}>
+              {importModal.type === 'success' ? (
+                <CheckCircle2 className="w-8 h-8 stroke-[1.75]" />
+              ) : (
+                <AlertCircle className="w-8 h-8 stroke-[1.75]" />
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <h3 className="text-base font-black text-cyberCyan uppercase tracking-tight">
+                {importModal.title}
+              </h3>
+              <p className="text-xs text-textSub font-medium leading-relaxed">
+                {importModal.message}
+              </p>
+            </div>
+            <div className="w-full pt-2">
+              <button
+                type="button"
+                onClick={closeImportModal}
+                className="w-full bg-cyberCyan/20 hover:bg-cyberCyan/30 border border-cyberCyan/40 text-textMain font-bold text-xs py-3 px-4 rounded-2xl transition-all cursor-pointer active:scale-95"
+              >
+                ACEPTAR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

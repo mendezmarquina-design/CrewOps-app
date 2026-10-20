@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Clock } from 'lucide-react';
 
-export default function BackButton({ onClick, title = "Volver a Control de Vuelos", label = "REGRESAR" }) {
+function BackButton({ onClick, title = 'Volver a Control de Vuelos', label = 'REGRESAR' }) {
   return (
     <button
       type="button"
@@ -12,7 +12,12 @@ export default function BackButton({ onClick, title = "Volver a Control de Vuelo
         <Clock className="w-4 h-4 text-cyberCyan" />
         <span>{title}</span>
       </div>
-      <span className="text-[10px] text-textSub uppercase font-extrabold tracking-wider">{label}</span>
+      <span className="text-[10px] text-textSub uppercase font-extrabold tracking-wider">
+        {label}
+      </span>
     </button>
   );
 }
+
+// ✅ Componente memoizado (alto impacto por ser muy reutilizado)
+export default memo(BackButton);

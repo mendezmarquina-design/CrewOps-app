@@ -8,6 +8,7 @@ import AircraftManagementView from './views/AircraftManagementView';
 import ItineraryManagementView from './views/ItineraryManagementView';
 import ReportManagementView from './views/ReportManagementView';
 import DocumentSearchView from './views/DocumentSearchView';
+import DocumentsLibraryView from './views/DocumentsLibraryView'; // ← NUEVO
 import GceManagementView from './views/GceManagementView';
 import FlightBriefingView from './components/flight-itinerary/FlightBriefingView';
 import FlightGanttView from './components/flight-itinerary/FlightGanttView';
@@ -15,11 +16,10 @@ import FlightGanttView from './components/flight-itinerary/FlightGanttView';
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentTab, setCurrentTab] = useState('flights');
-  
   const [selectedBriefingFlight, setSelectedBriefingFlight] = useState(null);
   const [selectedGanttFlight, setSelectedGanttFlight] = useState(null);
   const [activeGceFlight, setActiveGceFlight] = useState(null);
-
+  
   // Guarda siempre el vuelo activo seleccionado
   const [lastActiveFlight, setLastActiveFlight] = useState(null);
 
@@ -68,7 +68,7 @@ export default function App() {
     <ThemeProvider>
       <div className="font-sans selection:bg-accentBlue selection:text-white">
         <Header onOpenMenu={() => setIsSidebarOpen(true)} />
-
+        
         <Sidebar 
           isOpen={isSidebarOpen} 
           onClose={() => setIsSidebarOpen(false)} 
@@ -80,7 +80,7 @@ export default function App() {
             setCurrentTab(tab);
           }}
         />
-
+        
         <main className="p-4 max-w-md mx-auto space-y-4">
           {/* VISTA DE BRIEFING */}
           {currentTab === 'flights' && selectedBriefingFlight ? (
@@ -114,31 +114,34 @@ export default function App() {
               {currentTab === 'reports' && (
                 <ReportManagementView onBack={goToFlights} />
               )}
-
               {currentTab === 'gce' && (
                 <GceManagementView 
                   activeFlight={activeGceFlight} 
                   onBack={goToFlights} 
                 />
               )}
-
               {(currentTab === 'documents' || currentTab === 'briefing') && (
                 <DocumentSearchView onBackToFlights={goToFlights} />
               )}
-
+              
+              {/* ✨ NUEVA VISTA: BIBLIOTECA DE DOCUMENTOS */}
+              {currentTab === 'library' && (
+                <DocumentsLibraryView onBack={goToFlights} />
+              )}
+              
               {currentTab === 'aircrafts' && (
                 <AircraftManagementView onBackToFlights={goToFlights} />
               )}
-
               {(currentTab === 'itinerary' || currentTab === 'itineraries') && (
                 <ItineraryManagementView onBack={goToFlights} />
               )}
-
+              
               {currentTab !== 'flights' && 
                currentTab !== 'reports' && 
                currentTab !== 'gce' && 
                currentTab !== 'documents' && 
                currentTab !== 'briefing' && 
+               currentTab !== 'library' && 
                currentTab !== 'aircrafts' && 
                currentTab !== 'itinerary' && 
                currentTab !== 'itineraries' && (
@@ -150,7 +153,6 @@ export default function App() {
                   >
                     <span>Volver a Control de Vuelos</span>
                   </button>
-                  
                   <div className="bg-bgCard border border-border-color rounded-2xl p-6 text-center text-sub text-xs">
                     Vista de <span className="text-accentBlue font-bold uppercase">{currentTab}</span> en construcción.
                   </div>
