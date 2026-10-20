@@ -1,0 +1,202 @@
+[
+  {
+    "id": "rule_primeras_salidas_am",
+    "description": "Primeras salidas AM (03:00 - 09:59) en A320/A321 con TAT >= 60 min (DOM e INT)",
+    "conditions": {
+      "flightType": ["DOM", "INT"],
+      "aircraftType": ["A320", "A321"],
+      "minTat": 60,
+      "timeRange": { "start": "03:00", "end": "09:59" }
+    },
+    "templateId": "scl_a320_fam_primeras_salidas_60"
+  },
+  {
+    "id": "rule_anf_lim_a320_100",
+    "description": "Vuelo único ANF a LIM en A320 (TAT 100 min, Manga)",
+    "conditions": {
+      "origin": ["ANF"],
+      "destination": ["LIM"],
+      "aircraftType": ["A320", "A320neo"],
+      "tat": [100]
+    },
+    "templateId": "anf_a320_lim_100"
+  },
+  {
+    "id": "rule_bba_a321_45",
+    "description": "Vuelo único BBA en A321 (DOM, TAT 45 min, Manga)",
+    "conditions": {
+      "origin": ["BBA"],
+      "aircraftType": ["A321"],
+      "flightType": ["DOM"],
+      "tat": [45]
+    },
+    "templateId": "bba_a321_dom_45"
+  },
+  {
+    "id": "rule_vuelos_autopropulsados_a321",
+    "description": "Vuelos autopropulsados para orígenes MHC, LSC, CPO, PNT en A321 (45 min TAT)",
+    "conditions": {
+      "origin": ["MHC", "LSC", "CPO", "PNT"],
+      "aircraftType": ["A321"]
+    },
+    "templateId": "la_dom_a321_autopropulsado_45"
+  },
+  {
+    "id": "rule_vuelos_autopropulsados_a320",
+    "description": "Vuelos autopropulsados para orígenes MHC, LSC, CPO, PNT en A320/A319 (40 min TAT)",
+    "conditions": {
+      "origin": ["MHC", "LSC", "CPO", "PNT"],
+      "aircraftType": ["A319", "A320"]
+    },
+    "templateId": "la_dom_a320_autopropulsado_40"
+  },
+  {
+    "id": "rule_a320_dom_35min_bases",
+    "description": "Vuelos domésticos en A320 con TAT 35 min desde SCL, BBA, PUQ, PMC",
+    "conditions": {
+      "origin": ["SCL", "BBA", "PUQ", "PMC"],
+      "aircraftType": ["A320", "A320neo"],
+      "flightType": ["DOM"],
+      "positionType": ["GATE", "MANGA"],
+      "tat": [35]
+    },
+    "templateId": "scl_a320_dom_35"
+  },
+  {
+    "id": "rule_a321_dom_45min_bases",
+    "description": "Vuelos domésticos en A321 con TAT 45 min desde SCL, BBA, PUQ, PMC",
+    "conditions": {
+      "origin": ["SCL", "BBA", "PUQ", "PMC"],
+      "aircraftType": ["A321"],
+      "flightType": ["DOM"],
+      "positionType": ["GATE", "MANGA"],
+      "tat": [45]
+    },
+    "templateId": "scl_a321_dom_45"
+  },
+  {
+    "id": "rule_scl_int_a321_60",
+    "description": "Vuelos internacionales saliendo de SCL en A321 (TAT 60 min, Manga)",
+    "conditions": {
+      "origin": ["SCL"],
+      "flightType": ["INT"],
+      "aircraftType": ["A321"],
+      "positionType": ["GATE", "MANGA"],
+      "tat": [60]
+    },
+    "templateId": "scl_a321_int_60"
+  },
+  {
+    "id": "rule_scl_int_a321_55",
+    "description": "Vuelos internacionales saliendo de SCL en A321 (TAT 55 min, Manga)",
+    "conditions": {
+      "origin": ["SCL"],
+      "flightType": ["INT"],
+      "aircraftType": ["A321"],
+      "positionType": ["GATE", "MANGA"],
+      "tat": [55]
+    },
+    "templateId": "scl_a321_int_55"
+  },
+  {
+    "id": "rule_scl_int_a320_45",
+    "description": "Vuelos internacionales saliendo de SCL en A320 (TAT 45 min, Manga)",
+    "conditions": {
+      "origin": ["SCL"],
+      "flightType": ["INT"],
+      "aircraftType": ["A320"],
+      "positionType": ["GATE", "MANGA"],
+      "tat": [45]
+    },
+    "templateId": "la_scl_a320_int_45"
+  },
+  {
+    "id": "rule_posta_int_a321_fallback",
+    "description": "Fallback / Estándar para postas internacionales en A321",
+    "conditions": {
+      "flightType": ["INT"],
+      "aircraftType": ["A321"]
+    },
+    "templateId": "scl_a321_int_60"
+  },
+  {
+    "id": "rule_posta_int_a320_fallback",
+    "description": "Fallback / Estándar para postas internacionales en A320",
+    "conditions": {
+      "flightType": ["INT"],
+      "aircraftType": ["A319", "A320"]
+    },
+    "templateId": "la_scl_a320_int_45"
+  },
+  {
+    "id": "rule_origen_holgada_dom",
+    "description": "Carta Gantt de Origen u Holgada DOM (A319/A320, DOM, Gate/Manga, TAT >= 50 min)",
+    "conditions": {
+      "flightType": ["DOM"],
+      "aircraftType": ["A319", "A320"],
+      "positionType": ["GATE", "MANGA"],
+      "minTat": 50
+    },
+    "templateId": "origen_holgada_a320_50"
+  },
+  {
+    "id": "rule_dom_general_a320_tat_min_30",
+    "description": "TAT Mínimo Notificado por HCC para A320 DOM (30 min)",
+    "conditions": {
+      "flightType": ["DOM"],
+      "aircraftType": ["A319", "A320"],
+      "maxTat": 34,
+      "isTatMinNotified": true
+    },
+    "templateId": "la_dom_a320_30"
+  },
+  {
+    "id": "rule_dom_general_a321_tat_min_40",
+    "description": "TAT Mínimo Notificado por HCC para A321 DOM (40 min)",
+    "conditions": {
+      "flightType": ["DOM"],
+      "aircraftType": ["A321"],
+      "maxTat": 44,
+      "isTatMinNotified": true
+    },
+    "templateId": "la_dom_a321_40"
+  },
+  {
+    "id": "rule_dom_general_a321_50min",
+    "description": "Vuelos domésticos generales en A321 con TAT de 50 min",
+    "conditions": {
+      "flightType": ["DOM"],
+      "aircraftType": ["A321"],
+      "tat": [50]
+    },
+    "templateId": "la_dom_a321_50"
+  },
+  {
+    "id": "rule_dom_general_a320_40min",
+    "description": "Vuelos domésticos generales en A320 con TAT de 40 min",
+    "conditions": {
+      "flightType": ["DOM"],
+      "aircraftType": ["A319", "A320"],
+      "tat": [40]
+    },
+    "templateId": "la_dom_a320_40"
+  },
+  {
+    "id": "rule_dom_general_a320_fallback_35min",
+    "description": "Fallback estándar para vuelos domésticos en A320 (TAT 35 min)",
+    "conditions": {
+      "flightType": ["DOM"],
+      "aircraftType": ["A319", "A320"]
+    },
+    "templateId": "la_dom_a320_35"
+  },
+  {
+    "id": "rule_dom_general_a321_fallback_45min",
+    "description": "Fallback estándar para vuelos domésticos en A321 (TAT 45 min)",
+    "conditions": {
+      "flightType": ["DOM"],
+      "aircraftType": ["A321"]
+    },
+    "templateId": "scl_a321_dom_45"
+  }
+]

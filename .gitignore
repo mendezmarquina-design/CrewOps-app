@@ -1,0 +1,32 @@
+# Dependencias (¡NUNCA subir esto!)
+node_modules/
+.pnp
+.pnp.js
+
+# Archivos de entorno (Claves, contraseñas, URLs de API)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Archivos compilados por Vite
+dist/
+build/
+
+# Logs y caché de npm/yarn/pnpm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Archivos de editores de código
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db

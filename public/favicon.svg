@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Fondo Azul Oscuro Operativo -->
+  <rect width="512" height="512" rx="112" fill="#0b1326" />
+
+  <!-- 1. RADAR EXTERIOR (FINO Y DISCRETO) -->
+  <circle 
+    cx="256" 
+    cy="256" 
+    r="190" 
+    fill="none" 
+    stroke="#006b88" 
+    stroke-width="6" 
+    stroke-dasharray="10 10" 
+  />
+
+  <!-- 2. ALAS AERODINÁMICAS EN V (ESTILIZADAS Y AFILADAS) -->
+  <path 
+    d="M 256 420 L 70 125 L 185 240 L 256 290 L 327 240 L 442 125 Z" 
+    fill="#1d4ed8" 
+  />
+
+  <!-- 3. ANILLO CENTRAL "O" (TRAZO FINO Y ELEGANTE) -->
+  <circle 
+    cx="256" 
+    cy="256" 
+    r="105" 
+    fill="none" 
+    stroke="#17d8ff" 
+    stroke-width="18" 
+  />
+
+  <!-- 4. PUNTO CENTRAL FIJO -->
+  <circle 
+    cx="256" 
+    cy="256" 
+    r="28" 
+    fill="#17d8ff" 
+  />
+</svg>

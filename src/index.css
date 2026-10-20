@@ -1,0 +1,195 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   1. VARIABLES DE TEMA DINÁMICAS (CAMBIAN SEGÚN DATA-THEME)
+   ========================================================================== */
+
+/* --- Tema: Cyberpunk (Default) --- */
+:root, :root[data-theme="cyberpunk"] {
+  --color-bgApp: #0B0E18;
+  --color-bgSidebar: #12182B;
+  --color-bgCard: #12182B;
+  --color-bgCardHeader: #182036;
+  --color-bgInput: #060911;
+
+  --color-accentBlue: #2563EB;
+  --color-accentGreen: #00FF88;
+  --color-accentYellow: #FFBD00;
+
+  --text-main: #FFFFFF;
+  --text-sub: #8B9BB4;
+  --text-principal: #cccfff;
+  --text-inverse-dark: #12182B;
+  --text-inverse-ligth: #FFFFFF;
+  --border-color: #1E2942;
+  
+  --accent: #00E5FF;
+  --accent-bg: rgba(6, 182, 212, 0.1);
+  --accent-border: #28385A;
+  --social-bg: #101426;
+  --shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.8);
+  
+  --cyber-yellow: #FFBD00;
+  --cyber-cyan: #00E5FF;
+  --cyber-green: #00FF88;
+  --cyber-purple: #262D53;
+  --cyber-purple-border: #4F588D;
+
+  /* Horarios Cyberpunk */
+  --cyber-lilac: #C084FC;
+  --cyber-coral: #FF6B00;
+
+  /* Categorías */
+  --cat-manuales: #3B82F6;
+  --cat-rtms: #10B981;
+  --cat-rtas: #F59E0B;
+  --cat-comunicados: #A855F7;
+  --cat-boletines: #EC4899;
+  --cat-otros: #64748B;
+}
+
+/* --- Tema: Oscuro Corporativo --- */
+:root[data-theme="dark-corp"] {
+  --color-bgApp: #020617;
+  --color-bgSidebar: #0F172A;
+  --color-bgCard: #1E293B;
+  --color-bgCardHeader: #334155;
+  --color-bgInput: #0F172A;
+  
+  --color-accentBlue: #ED1651;
+  --color-accentGreen: #10B981;
+  --color-accentYellow: #F59E0B;
+  
+  --text-main: #F8FAFC;
+  --text-sub: #94A3B8;
+  --text-principal: #a3b3ff;
+  --text-inverse-dark: #1E293B;
+  --text-inverse-ligth: #FFFFFF;
+  --border-color: #334155;
+
+  --accent: #ED1651;
+  --accent-bg: rgba(237, 22, 81, 0.15);
+  --accent-border: #ED1651;
+  --social-bg: #0f172a;
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+
+  --cyber-yellow: #F59E0B;
+  --cyber-cyan: #38BDF8;
+  --cyber-green: #10B981;
+  --cyber-purple: #ED1651;
+  --cyber-purple-border: #ED1651;
+
+  /* Horarios Dark-Corp */
+  --cyber-lilac: #A855F7;
+  --cyber-coral: #F97316;
+
+  /* Categorías */
+  --cat-manuales: #60A5FA;
+  --cat-rtms: #34D399;
+  --cat-rtas: #FBBF24;
+  --cat-comunicados: #C084FC;
+  --cat-boletines: #F472B6;
+  --cat-otros: #94A3B8;
+}
+
+/* --- Tema: Claro Corporativo (LATAM Nativo) --- */
+:root[data-theme="light-corp"] {
+  --color-bgApp: #F4F5F9;
+  --color-bgSidebar: #FFFFFF;
+  --color-bgCard: #FFFFFF;
+  --color-bgCardHeader: #F8FAFC;
+  --color-bgInput: #F1F4F9;
+
+  --color-accentBlue: #1A008A;    /* Azul Índigo Corporativo */
+  --color-accentGreen: #008A7B;   /* Verde Esmeralda/Teal */
+  --color-accentYellow: #D97706;  /* Ámbar */
+
+  --text-main: #0F172A;
+  --text-sub: #64748B;
+  --text-principal: #1A008A;      
+  --text-inverse-dark: #FFFFFF;
+  --text-inverse-ligth: #0F172A;
+  --border-color: #E2E8F0;
+
+  --accent: #1A008A;
+  --accent-bg: #EEF2FF;
+  --accent-border: #1A008A;
+  --social-bg: #ffffff;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+
+  --cyber-yellow: #D97706;
+  --cyber-cyan: #1A008A;         
+  --cyber-green: #008A7B;
+  --cyber-purple: #008A7B;       
+  --cyber-purple-border: #007669;
+
+  /* Colores Corporativos Integrados de la App LATAM */
+  --cyber-lilac: #8A0072;          /* Morado Cabina LATAM */
+  --cyber-coral: #E10600;          /* Coral LATAM */
+  --latam-coral: #E10600;        
+  --latam-purple: #8A0072;       
+  --latam-indigo: #1A008A;       
+
+  /* Categorías */
+  --cat-manuales: #1A008A;
+  --cat-rtms: #008A7B;
+  --cat-rtas: #D97706;
+  --cat-comunicados: #8A0072;
+  --cat-boletines: #E10600;
+  --cat-otros: #475569;
+}
+
+/* ==========================================================================
+   2. CONFIGURACIÓN DEL SISTEMA DE DISEÑO DE TAILWIND V4
+   ========================================================================== */
+
+@theme {
+  --text-tiny: 0.68rem; 
+
+  --color-bgApp: var(--color-bgApp);
+  --color-bgSidebar: var(--color-bgSidebar);
+  --color-bgCard: var(--color-bgCard);
+  --color-bgCardHeader: var(--color-bgCardHeader);
+  --color-bgInput: var(--color-bgInput);
+
+  --color-accentBlue: var(--color-accentBlue);
+  --color-accentGreen: var(--color-accentGreen);
+  --color-accentYellow: var(--color-accentYellow);
+
+  --color-textMain: var(--text-main);
+  --color-textSub: var(--text-sub);
+  --color-textPrincipal: var(--text-principal);
+  --color-text-principal: var(--text-principal);
+  --color-textInverseDark: var(--text-inverse-dark);
+  --color-textInverseLigth: var(--text-inverse-ligth);
+  --color-borderCard: var(--border-color);
+
+  --color-cyberYellow: var(--cyber-yellow);
+  --color-cyberCyan: var(--cyber-cyan);
+  --color-cyberGreen: var(--cyber-green);
+  --color-cyberPurple: var(--cyber-purple);
+  --color-cyberPurpleBorder: var(--cyber-purple-border);
+  
+  --color-cyberLilac: var(--cyber-lilac);
+  --color-cyberCoral: var(--cyber-coral);
+
+  --color-latamCoral: var(--latam-coral);
+  --color-latamPurple: var(--latam-purple);
+  --color-latamIndigo: var(--latam-indigo);
+
+  --color-catManuales: var(--cat-manuales);
+  --color-catRtms: var(--cat-rtms);
+  --color-catRtas: var(--cat-rtas);
+  --color-catComunicados: var(--cat-comunicados);
+  --color-catBoletines: var(--cat-boletines);
+  --color-catOtros: var(--cat-otros);
+}
+
+body {
+  background-color: var(--color-bgApp) !important;
+  color: var(--text-main) !important;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  transition: background-color 0.25s ease, color 0.25s ease;
+  min-height: 100vh;
+  margin: 0;
+}

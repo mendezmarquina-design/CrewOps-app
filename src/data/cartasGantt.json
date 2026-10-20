@@ -1,0 +1,61 @@
+{
+  "version": "1.0.0",
+  "updatedAt": "2026-09-25",
+  "templates": [
+    {
+      "id": "scl_a321_dom_45",
+      "name": "SCL A321 DOM 45min",
+      "version": "1.0",
+      "aircraftType": "A321",
+      "nature": "Dom-Dom",
+      "serviceType": "Manga",
+      "tat": 45,
+      "description": "Carta Gantt A321 Doméstico - Enfoque Tripulación y Cabina",
+      "milestones": [
+        { "id": "m1", "key": "llegada_personal_puerta", "title": "Llegada personal a puerta", "offset": -55, "duration": 10, "category": "SAB" },
+        { "id": "m2", "key": "llegada_avion", "title": "Llegada del avión", "offset": -45, "duration": 0, "category": "TC" },
+        { "id": "m3", "key": "apertura_puertas", "title": "Apertura de Puertas", "offset": -43, "duration": 0, "category": "TC" },
+        { "id": "m4", "key": "entrega_doc_vuelo", "title": "Entrega Doc Vuelo", "offset": -43, "duration": 5, "category": "TC" },
+        { "id": "m5", "key": "desembarque_pax", "title": "Desembarque PAX", "offset": -43, "duration": 13, "category": "TC" },
+        { "id": "m6", "key": "llegada_tripulacion", "title": "Llegada Tripulación", "offset": -35, "duration": 0, "category": "TC" },
+        { "id": "m7", "key": "desembarque_tripulacion", "title": "Desembarque Tripulación", "offset": -30, "duration": 2, "category": "TC" },
+        { "id": "m8", "key": "limpieza_cabina", "title": "Limpieza de Cabina", "offset": -30, "duration": 4, "category": "TC" },
+        { "id": "m9", "key": "preparacion_cabina", "title": "Equipo Emergencia y Preparación de Cabina", "offset": -30, "duration": 4, "category": "TC" },
+        { "id": "m10", "key": "preembarque", "title": "Preembarque", "offset": -30, "duration": 4, "category": "SAB" },
+        { "id": "m11", "key": "embarque_sala", "title": "Embarque en Sala / al avión", "offset": -26, "duration": 18, "category": "SAB" },
+        { "id": "m12", "key": "cierre_embarque_sistema", "title": "Cierre Embarque por Sistema", "offset": -8, "duration": 2, "category": "SAB" },
+        { "id": "m13", "key": "traslado_ultimos_pax", "title": "Traslado últimos pax", "offset": -8, "duration": 6, "category": "SAB" },
+        { "id": "m14", "key": "acomodacion_pasajeros", "title": "Acomodación de pasajeros", "offset": -6, "duration": 4, "category": "TC" },
+        { "id": "m15", "key": "cierre_puertas", "title": "Cierre Puertas", "offset": -2, "duration": 2, "category": "TC", "isCritical": true }
+      ]
+    },
+    {
+      "id": "la_scl_a320_int_45",
+      "name": "LA SCL A320 INT 45min",
+      "version": "1.0",
+      "aircraftType": "A320",
+      "nature": "Int-Int",
+      "serviceType": "Manga",
+      "tat": 45,
+      "description": "Carta Gantt A320 Internacional - Enfoque Tripulación y Cabina",
+      "milestones": [
+        { "id": "m1", "key": "llegada_personal_puerta", "title": "Llegada personal a puerta", "offset": -55, "duration": 10, "category": "SAB" },
+        { "id": "m2", "key": "llegada_avion", "title": "Llegada del avión", "offset": -45, "duration": 0, "category": "TC" },
+        { "id": "m3", "key": "apertura_puertas", "title": "Apertura de Puertas", "offset": -43, "duration": 0, "category": "TC" },
+        { "id": "m4", "key": "entrega_doc_vuelo", "title": "Entrega Doc Vuelo", "offset": -43, "duration": 5, "category": "TC" },
+        { "id": "m5", "key": "desembarque_pax", "title": "Desembarque PAX", "offset": -43, "duration": 11, "category": "TC" },
+        { "id": "m6", "key": "llegada_tripulacion", "title": "Llegada Tripulación", "offset": -42, "duration": 0, "category": "TC" },
+        { "id": "m7", "key": "briefing_tm_tc", "title": "Briefing TM/TC", "offset": -42, "duration": 15, "category": "TC" },
+        { "id": "m8", "key": "desembarque_tripulacion", "title": "Desembarque Tripulación", "offset": -32, "duration": 2, "category": "TC" },
+        { "id": "m9", "key": "limpieza_cabina", "title": "Limpieza de Cabina", "offset": -33, "duration": 10, "category": "TC" },
+        { "id": "m10", "key": "preparacion_cabina", "title": "Equipo Emergencia y Preparación de Cabina", "offset": -27, "duration": 4, "category": "TC" },
+        { "id": "m11", "key": "preembarque", "title": "Preembarque", "offset": -27, "duration": 4, "category": "SAB" },
+        { "id": "m12", "key": "embarque_sala", "title": "Embarque en Sala / al avión", "offset": -23, "duration": 16, "category": "SAB" },
+        { "id": "m13", "key": "traslado_ultimos_pax", "title": "Traslado últimos pax", "offset": -7, "duration": 2, "category": "SAB" },
+        { "id": "m14", "key": "cierre_embarque_sistema", "title": "Cierre Embarque por Sistema", "offset": -5, "duration": 0, "category": "SAB" },
+        { "id": "m15", "key": "acomodacion_pasajeros", "title": "Acomodación de pasajeros", "offset": -5, "duration": 3, "category": "TC" },
+        { "id": "m16", "key": "cierre_puertas", "title": "Cierre Puertas", "offset": -2, "duration": 2, "category": "TC", "isCritical": true }
+      ]
+    }
+  ]
+}
