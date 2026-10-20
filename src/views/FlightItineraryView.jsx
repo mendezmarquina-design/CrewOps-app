@@ -15,6 +15,7 @@ import StickyFlightBar from '../components/common/StickyFlightBar';
 import AlarmModal from '../components/common/AlarmModal';
 import AlarmOverlay from '../components/common/AlarmOverlay';
 import { EditReportModal } from '../components/reports';
+import { triggerImmediateAlarm } from '../utils/doorCloseAlarm'; // ✅ AGREGADO
 
 const getTodayStringISO = () => new Date().toISOString().split('T')[0];
 
@@ -35,7 +36,7 @@ export default function FlightItineraryView({
   const [isAlarmModalOpen, setIsAlarmModalOpen] = useState(false);
   const [showFullScreenAlarm, setShowFullScreenAlarm] = useState(false);
 
-  // ✅ REFS para el reloj de alarmas
+  // ✅ REFS para el reloj de alarmas (evitan reinicios innecesarios)
   const triggeredAlarmsRef = useRef(new Set());
   const lastCierrePuertasRef = useRef(null);
 
@@ -77,7 +78,7 @@ export default function FlightItineraryView({
 
   const hasFlights = dayFlights.length > 0 && currentFlight !== null;
 
-  // ✅ RELOJ ESTABILIZADO CON useRef
+  // ✅ RELOJ ESTABILIZADO CON useRef Y DETECCIÓN DE FONDO/PRIMER PLANO
   useEffect(() => {
     const cierrePuertas = currentFlight?.cierrePuerta || currentFlight?.cierrePuertasTime;
 
@@ -89,7 +90,7 @@ export default function FlightItineraryView({
       return;
     }
 
-    // 2. ✅ CLAVE: Si la hora es la misma que la última vez, NO reiniciar el reloj
+    // 2. CLAVE: Si la hora es la misma que la última vez, NO reiniciar el reloj
     if (lastCierrePuertasRef.current === cierrePuertas) {
       return;
     }
@@ -124,6 +125,11 @@ export default function FlightItineraryView({
         if (diff >= 0 && diff < 1 && !triggeredAlarmsRef.current.has(alarmKey)) {
           console.log(`🚨 ALARMA DISPARADA: ${minBefore} min antes de ${cierrePuertas}`);
           triggeredAlarmsRef.current.add(alarmKey);
+          
+          // ✅ DISPARAR SONIDO Y VIBRACIÓN
+          triggerImmediateAlarm();
+          
+          // Mostrar overlay de pantalla completa
           setShowFullScreenAlarm(true);
         }
       }
@@ -133,6 +139,60 @@ export default function FlightItineraryView({
     return () => {
       clearInterval(intervalId);
       console.log('⏰ Reloj detenido');
+    };
+  }, [currentFlight?.id, currentFlight?.cierrePuerta, currentFlight?.cierrePuertasTime]);
+
+  // ✅ DETECTAR CUANDO LA APP VUELVE A PRIMER PLANO O SE HACE CLICK EN NOTIFICACIÓN
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('👁️ App volvió a primer plano - verificando alarmas');
+        checkPendingAlarms();
+      }
+    };
+
+    const checkPendingAlarms = () => {
+      const cierrePuertas = currentFlight?.cierrePuerta || currentFlight?.cierrePuertasTime;
+      const alarmEnabled = localStorage.getItem('doorCloseAlarm') === 'true';
+      const savedMinutes = localStorage.getItem('alarmMinutesList');
+      const alarmMinutes = savedMinutes ? JSON.parse(savedMinutes) : [5, 15];
+
+      if (!alarmEnabled || !cierrePuertas || cierrePuertas === '--:--' || !currentFlight?.id) return;
+
+      const [hours, minutes] = cierrePuertas.split(':').map(Number);
+      if (isNaN(hours) || isNaN(minutes)) return;
+
+      const now = new Date();
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+      for (const minBefore of alarmMinutes) {
+        const alarmMinutesTotal = hours * 60 + (minutes - minBefore);
+        const normalizedAlarmMinutes = alarmMinutesTotal < 0 ? alarmMinutesTotal + 1440 : alarmMinutesTotal;
+        const diff = nowMinutes - normalizedAlarmMinutes;
+        const alarmKey = `${currentFlight.id}-${minBefore}`;
+
+        // Si la alarma ya pasó (hasta 5 minutos atrás) y no se ha disparado
+        if (diff >= -5 && diff < 1 && !triggeredAlarmsRef.current.has(alarmKey)) {
+          console.log(`🚨 ALARMA PENDIENTE DETECTADA: ${minBefore} min de ${cierrePuertas}`);
+          triggeredAlarmsRef.current.add(alarmKey);
+          triggerImmediateAlarm();
+          setShowFullScreenAlarm(true);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    const handleNotificationClick = (event) => {
+      console.log('🔔 Click en notificación:', event.detail);
+      triggerImmediateAlarm();
+      setShowFullScreenAlarm(true);
+    };
+    window.addEventListener('alarmNotificationClick', handleNotificationClick);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('alarmNotificationClick', handleNotificationClick);
     };
   }, [currentFlight?.id, currentFlight?.cierrePuerta, currentFlight?.cierrePuertasTime]);
 

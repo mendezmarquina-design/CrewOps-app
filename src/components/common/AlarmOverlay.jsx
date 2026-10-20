@@ -6,12 +6,10 @@ export default function AlarmOverlay({ flightNumber, cierrePuertasTime, onDismis
   const [isRinging, setIsRinging] = useState(true);
 
   useEffect(() => {
-    // Disparar sonido y vibración al montar
     if (isRinging) {
-      triggerImmediateAlarm();
-      // Repetir la vibración/sonido cada 3 segundos hasta que se cierre
+      triggerImmediateAlarm(); // Sonido + vibración al montar
       const interval = setInterval(() => {
-        triggerImmediateAlarm();
+        triggerImmediateAlarm(); // Repetir cada 3 segundos
       }, 3000);
       return () => clearInterval(interval);
     }
@@ -24,10 +22,9 @@ export default function AlarmOverlay({ flightNumber, cierrePuertasTime, onDismis
 
   return (
     <div className="fixed inset-0 z-[9999] bg-cyberCoral/95 backdrop-blur-md flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in duration-300">
-      {/* Animación de pulso de fondo */}
       <div className="absolute inset-0 bg-cyberCoral/30 animate-ping pointer-events-none" />
       
-      <div className="relative z-10 bg-bgCard border-4 border-cyberYellow rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center space-y-6 animate-bounce-slow">
+      <div className="relative z-10 bg-bgCard border-4 border-cyberYellow rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center space-y-6">
         <div className="w-24 h-24 mx-auto rounded-full bg-cyberYellow/20 border-4 border-cyberYellow flex items-center justify-center animate-pulse">
           <AlertTriangle className="w-12 h-12 text-cyberYellow" />
         </div>
