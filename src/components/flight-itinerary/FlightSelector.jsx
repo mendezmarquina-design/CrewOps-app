@@ -1,18 +1,21 @@
 // src/components/flight-itinerary/FlightSelector.jsx
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { db } from '../../db';
-import { 
-  Calendar as CalendarIcon, 
-  Upload, 
-  Plus, 
-  Pin, 
-  ChevronLeft, 
-  ChevronRight, 
-  CheckCircle2, 
-  AlertCircle,
-  X 
+import {
+  Calendar as CalendarIcon,
+  Upload,
+  Plus,
+  Pin,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { parseRosterIcs } from '../../utils/flightUtils';
+
+// Configuración del gesto de swipe
+const SWIPE_THRESHOLD = 50; // px mínimos para considerar un swipe válido
+const SWIPE_MAX_TIME = 300; // ms máximos para que el gesto sea considerado rápido
 
 export default function FlightSelector({
   selectedFlight,
@@ -34,6 +37,11 @@ export default function FlightSelector({
   });
 
   const calendarRef = useRef(null);
+
+  // ✨ Refs para el gesto de swipe
+  const flightListRef = useRef(null); // Ref de la lista de vuelos (para excluirla del swipe)
+  const touchStartRef = useRef(null);
+  const [swipeDirection, setSwipeDirection] = useState(null);
 
   // Modal para alertas de importación .ics
   const [importModal, setImportModal] = useState({
@@ -67,26 +75,68 @@ export default function FlightSelector({
     const [year, month, day] = currentDateStr.split('-').map(Number);
     const dateObj = new Date(year, month - 1, day);
     dateObj.setDate(dateObj.getDate() + days);
-
     const yyyy = dateObj.getFullYear();
     const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
     const dd = String(dateObj.getDate()).padStart(2, '0');
-
     const newDateStr = `${yyyy}-${mm}-${dd}`;
     if (onDateChange) onDateChange(newDateStr);
-
-    // Sincronizar vista del calendario
     setViewDate(new Date(yyyy, dateObj.getMonth(), 1));
   };
+
+  // ✨ GESTOS DE SWIPE EN TODA LA CARD (excepto en la lista de vuelos)
+  const handleCardTouchStart = useCallback((e) => {
+    // Si el toque inicia en la lista de vuelos, no aplicar swipe (permitir scroll normal)
+    if (flightListRef.current && flightListRef.current.contains(e.target)) {
+      touchStartRef.current = null;
+      return;
+    }
+
+    const touch = e.touches[0];
+    touchStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      time: Date.now()
+    };
+  }, []);
+
+  const handleCardTouchEnd = useCallback((e) => {
+    // Si el touch inició en la lista de vuelos, no hacer nada
+    if (!touchStartRef.current) return;
+
+    // Si el calendario está abierto, no aplicar swipe (evitar cambios accidentales)
+    if (isCalendarOpen) return;
+
+    const { x: startX, y: startY, time: startTime } = touchStartRef.current;
+    const touch = e.changedTouches[0];
+    const deltaX = touch.clientX - startX;
+    const deltaY = touch.clientY - startY;
+    const timeDiff = Date.now() - startTime;
+
+    // Debe ser un gesto rápido, más horizontal que vertical, y con distancia suficiente
+    const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
+    const isFastEnough = timeDiff < SWIPE_MAX_TIME;
+    const isLongEnough = Math.abs(deltaX) > SWIPE_THRESHOLD;
+
+    if (isHorizontal && isFastEnough && isLongEnough) {
+      const direction = deltaX < 0 ? 'left' : 'right';
+      setSwipeDirection(direction);
+      setTimeout(() => setSwipeDirection(null), 200);
+
+      // Swipe izquierda → día siguiente | Swipe derecha → día anterior
+      if (deltaX < 0) {
+        handleDayShift(1);
+      } else {
+        handleDayShift(-1);
+      }
+    }
+  }, [currentDateStr, onDateChange, isCalendarOpen]);
 
   const handleIcsUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     try {
       const text = await file.text();
       const parsedFlights = parseRosterIcs(text);
-
       if (parsedFlights.length > 0) {
         await db.flights.bulkPut(parsedFlights);
         setImportModal({
@@ -112,9 +162,12 @@ export default function FlightSelector({
         type: 'error'
       });
     }
-
     e.target.value = '';
   };
+
+  const closeImportModal = useCallback(() => {
+    setImportModal((prev) => ({ ...prev, isOpen: false }));
+  }, []);
 
   // --- LÓGICA DEL CALENDARIO PERSONALIZADO ---
   const handleMonthChange = (offset) => {
@@ -126,7 +179,6 @@ export default function FlightSelector({
     const mm = String(viewDate.getMonth() + 1).padStart(2, '0');
     const dd = String(day).padStart(2, '0');
     const newDateStr = `${yyyy}-${mm}-${dd}`;
-
     if (onDateChange) onDateChange(newDateStr);
     setIsCalendarOpen(false);
   };
@@ -137,7 +189,6 @@ export default function FlightSelector({
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
     const newDateStr = `${yyyy}-${mm}-${dd}`;
-
     setViewDate(new Date(yyyy, today.getMonth(), 1));
     if (onDateChange) onDateChange(newDateStr);
     setIsCalendarOpen(false);
@@ -148,7 +199,6 @@ export default function FlightSelector({
   const month = viewDate.getMonth();
   const firstDayOfWeek = (new Date(year, month, 1).getDay() + 6) % 7; // Lunes = 0
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-
   const monthNames = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
@@ -156,7 +206,18 @@ export default function FlightSelector({
 
   return (
     <>
-      <div className="bg-bgCard border border-borderCard rounded-2xl p-3.5 space-y-3 shadow-sm max-w-md mx-auto transition-all">
+      {/* ✨ CARD PRINCIPAL CON GESTOS DE SWIPE */}
+      <div
+        className={`bg-bgCard border border-borderCard rounded-2xl p-3.5 space-y-3 shadow-sm max-w-md mx-auto transition-all duration-200 ${
+          swipeDirection === 'left'
+            ? 'translate-x-1 opacity-80'
+            : swipeDirection === 'right'
+            ? '-translate-x-1 opacity-80'
+            : ''
+        }`}
+        onTouchStart={handleCardTouchStart}
+        onTouchEnd={handleCardTouchEnd}
+      >
         {/* Contenedor de Fecha e Importador */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <div className="flex items-center justify-between gap-2 flex-1 relative" ref={calendarRef}>
@@ -175,8 +236,8 @@ export default function FlightSelector({
               type="button"
               onClick={() => setIsCalendarOpen(!isCalendarOpen)}
               className={`flex-1 h-11 bg-bgInput border rounded-xl px-3 flex items-center justify-center gap-2 transition-all cursor-pointer select-none active:scale-95 ${
-                isCalendarOpen 
-                  ? 'border-cyberCyan shadow-[0_0_10px_rgba(6,182,212,0.25)]' 
+                isCalendarOpen
+                  ? 'border-cyberCyan shadow-[0_0_10px_rgba(6,182,212,0.25)]'
                   : 'border-borderCard hover:border-cyberCyan/40'
               }`}
             >
@@ -189,7 +250,6 @@ export default function FlightSelector({
             {/* POPUP / MODAL DEL CALENDARIO DARK THEME */}
             {isCalendarOpen && (
               <div className="absolute top-13 left-1/2 -translate-x-1/2 z-50 w-72 bg-bgCard border border-borderCard rounded-2xl p-4 shadow-2xl animate-scaleUp">
-                {/* Header del Calendario */}
                 <div className="flex items-center justify-between mb-3">
                   <button
                     type="button"
@@ -198,11 +258,9 @@ export default function FlightSelector({
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-
                   <span className="text-xs font-bold text-textPrincipal uppercase tracking-wide">
                     {monthNames[month]} {year}
                   </span>
-
                   <button
                     type="button"
                     onClick={() => handleMonthChange(1)}
@@ -212,7 +270,6 @@ export default function FlightSelector({
                   </button>
                 </div>
 
-                {/* Días de la semana */}
                 <div className="grid grid-cols-7 gap-1 text-center mb-1">
                   {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'].map((d) => (
                     <span key={d} className="text-[10px] font-bold text-textSub uppercase">
@@ -221,25 +278,19 @@ export default function FlightSelector({
                   ))}
                 </div>
 
-                {/* Grilla de Días */}
                 <div className="grid grid-cols-7 gap-1">
-                  {/* Espacios vacíos mes anterior */}
                   {Array.from({ length: firstDayOfWeek }).map((_, i) => (
                     <div key={`empty-${i}`} />
                   ))}
-
-                  {/* Días del mes actual */}
                   {Array.from({ length: daysInMonth }).map((_, i) => {
                     const dayNumber = i + 1;
                     const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
                     const isSelected = dayStr === currentDateStr;
-                    
                     const today = new Date();
-                    const isToday = 
-                      today.getFullYear() === year && 
-                      today.getMonth() === month && 
+                    const isToday =
+                      today.getFullYear() === year &&
+                      today.getMonth() === month &&
                       today.getDate() === dayNumber;
-
                     return (
                       <button
                         key={dayNumber}
@@ -259,7 +310,6 @@ export default function FlightSelector({
                   })}
                 </div>
 
-                {/* Footer Botón Hoy */}
                 <div className="mt-3 pt-2 border-t border-borderCard/50 flex justify-between items-center">
                   <button
                     type="button"
@@ -303,7 +353,16 @@ export default function FlightSelector({
           </label>
         </div>
 
-        {/* Listado de Vuelos del Día */}
+        {/* Hint visual de swipe (solo en móvil) */}
+        <div className="sm:hidden flex justify-center -mt-1">
+          <span className="text-[9px] text-textSub/60 font-mono flex items-center gap-1 select-none">
+            <ChevronLeft className="w-2.5 h-2.5" />
+            desliza para cambiar día
+            <ChevronRight className="w-2.5 h-2.5" />
+          </span>
+        </div>
+
+        {/* Listado de Vuelos del Día (EXCLUIDO del swipe para permitir scroll) */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-textPrincipal uppercase tracking-wider block">
@@ -315,13 +374,15 @@ export default function FlightSelector({
               </span>
             )}
           </div>
-
-          <div className="flex items-center gap-2 overflow-x-auto px-2 py-1 scrollbar-none flex-nowrap">
+          {/* ✨ Ref en la lista de vuelos para excluirla del swipe */}
+          <div
+            ref={flightListRef}
+            className="flex items-center gap-2 overflow-x-auto px-2 py-1 scrollbar-none flex-nowrap"
+          >
             {dayFlights.map((f) => {
               const isSelected = String(selectedFlight?.id) === String(f.id);
               const isPinned = String(pinnedFlightId) === String(f.id);
               const formattedFlightNumber = (f.flightNumber || '').replace(/\s+/g, '');
-
               return (
                 <div key={f.id} className="relative group shrink-0">
                   <button
@@ -339,14 +400,12 @@ export default function FlightSelector({
                       {formattedFlightNumber}
                       {isPinned && <Pin className="w-2.5 h-2.5 fill-cyberYellow text-cyberYellow" />}
                     </span>
-
                     <span className={`text-[9px] font-bold font-mono tracking-wider ${
                       isSelected ? 'text-cyberCyan' : 'text-textSub'
                     }`}>
                       {f.route}
                     </span>
                   </button>
-
                   {isSelected && onTogglePin && (
                     <button
                       type="button"
@@ -367,7 +426,6 @@ export default function FlightSelector({
                 </div>
               );
             })}
-
             <button
               type="button"
               onClick={onNewFlight}
@@ -383,17 +441,17 @@ export default function FlightSelector({
 
       {/* MODAL PERSONALIZADO DE IMPORTACIÓN */}
       {importModal.isOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn"
-          onClick={() => setImportModal({ ...importModal, isOpen: false })}
+          onClick={closeImportModal}
         >
-          <div 
+          <div
             className="bg-bgCard border border-borderCard text-textMain rounded-3xl max-w-sm w-full p-6 shadow-2xl flex flex-col items-center text-center space-y-4 animate-scaleUp"
             onClick={(e) => e.stopPropagation()}
           >
             <div className={`w-16 h-16 rounded-full flex items-center justify-center shadow-sm border ${
-              importModal.type === 'success' 
-                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+              importModal.type === 'success'
+                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
                 : 'bg-cyberCoral/10 border-cyberCoral/20 text-cyberCoral'
             }`}>
               {importModal.type === 'success' ? (
@@ -402,7 +460,6 @@ export default function FlightSelector({
                 <AlertCircle className="w-8 h-8 stroke-[1.75]" />
               )}
             </div>
-
             <div className="space-y-1.5">
               <h3 className="text-base font-black text-cyberCyan uppercase tracking-tight">
                 {importModal.title}
@@ -411,11 +468,10 @@ export default function FlightSelector({
                 {importModal.message}
               </p>
             </div>
-
             <div className="w-full pt-2">
               <button
                 type="button"
-                onClick={() => setImportModal({ ...importModal, isOpen: false })}
+                onClick={closeImportModal}
                 className="w-full bg-cyberCyan/20 hover:bg-cyberCyan/30 border border-cyberCyan/40 text-textMain font-bold text-xs py-3 px-4 rounded-2xl transition-all cursor-pointer active:scale-95"
               >
                 ACEPTAR

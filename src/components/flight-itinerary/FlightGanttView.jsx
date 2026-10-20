@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, memo } from 'react';
 import { useFlightGantt } from '../../hooks/useFlightGantt';
 import BackButton from '../common/BackButton';
 import StickyFlightBar from '../common/StickyFlightBar';
@@ -8,9 +8,8 @@ const AIRCRAFT_TYPES = ['A320', 'A321', 'A320neo', 'A321neo', 'B787'];
 const FLIGHT_TYPES = ['DOM', 'INT'];
 const TAT_OPTIONS = [30, 35, 40, 45, 50, 60];
 
-export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
+function FlightGanttView({ flight, onBack, onUpdateFlight }) {
   const { state, actions } = useFlightGantt(flight, onUpdateFlight);
-
   const {
     selectedRoute,
     selectedAircraft,
@@ -31,20 +30,19 @@ export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
     filteredMilestones
   } = state;
 
-  const handleBackAndSave = async () => {
+  // ✅ Handler memoizado
+  const handleBackAndSave = useCallback(async () => {
     await actions.syncChangesToParent();
     if (onBack) onBack();
-  };
+  }, [actions, onBack]);
 
   return (
     <div className="bg-bgApp text-textMain min-h-screen p-3 sm:p-5 font-sans">
       <div className="max-w-md mx-auto space-y-3">
-
         {/* BARRA PEGAJOSA DE FLIGHT INFO */}
         <StickyFlightBar flight={flight} />
-        
         <BackButton onClick={handleBackAndSave} title="Volver a Control de Vuelos" />
-
+        
         {/* CARD PRINCIPAL CON CONTROLES */}
         <div className="bg-bgCard border-borderCard rounded-3xl p-4 border shadow-sm space-y-3">
           <div className="grid grid-cols-3 gap-2 text-center">
@@ -56,8 +54,6 @@ export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
                 </span>
               </div>
             </div>
-
-            {/* RUTA / TRAMO CARGADA AUTOMÁTICAMENTE DESDE FLIGHT */}
             <div>
               <span className="text-textSub text-[10px] font-black uppercase tracking-wider block mb-1">RUTA / TRAMO</span>
               <div className="bg-bgInput border-borderCard rounded-2xl py-2 px-1 flex items-center justify-center border">
@@ -66,7 +62,6 @@ export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
                 </span>
               </div>
             </div>
-
             <div>
               <span className="text-textSub text-[10px] font-black uppercase tracking-wider block mb-1">CIERRE PUERTAS</span>
               <div className="bg-bgInput border-borderCard rounded-2xl py-2 px-1 flex items-center justify-center border">
@@ -144,7 +139,6 @@ export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
 
           {/* COMBOBOXES DE CARTAS GANTT (ORIGEN Y DESTINO) */}
           <div className="space-y-2 pt-1">
-            {/* ORIGEN */}
             <div className="bg-bgCardHeader border-borderCard rounded-2xl p-2.5 space-y-1 border">
               <label className="text-cyberCyan text-[10px] font-black uppercase block text-center">
                 1. GANTT ORIGEN (SALIDA ETD: {displayEtd})
@@ -160,14 +154,12 @@ export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
                   </option>
                 ))}
               </select>
-
               <div className="flex items-center justify-center gap-1 text-[9px] text-textSub font-medium pt-0.5">
                 <Sparkles className="w-2.5 h-2.5 text-cyberCyan" />
                 <span>{originReason}</span>
               </div>
             </div>
 
-            {/* DESTINO */}
             <div className="bg-bgCardHeader border-borderCard rounded-2xl p-2.5 space-y-1 border">
               <label className="text-cyberYellow text-[10px] font-black uppercase block text-center">
                 2. GANTT DESTINO (LLEGADA ETA: {displayEta})
@@ -183,7 +175,6 @@ export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
                   </option>
                 ))}
               </select>
-
               <div className="flex items-center justify-center gap-1 text-[9px] text-textSub font-medium pt-0.5">
                 <Sparkles className="w-2.5 h-2.5 text-cyberYellow" />
                 <span>{destReason}</span>
@@ -191,7 +182,6 @@ export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
             </div>
           </div>
 
-          {/* BOTÓN DE REESTABLECER GANTT */}
           <button
             type="button"
             onClick={actions.handleResetGantt}
@@ -202,7 +192,6 @@ export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
           </button>
         </div>
 
-        {/* BOTÓN DE GUARDAR FUERA DE LA CARD */}
         <button
           type="button"
           onClick={handleBackAndSave}
@@ -213,8 +202,6 @@ export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
 
         {/* SECCIÓN DE HITOS */}
         <div className="bg-bgCard border-borderCard rounded-3xl p-4 border shadow-sm space-y-3">
-          
-          {/* BUSCADOR DE HITOS */}
           <div className="relative">
             <Search className="w-4 h-4 text-textSub absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
@@ -235,7 +222,6 @@ export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
             )}
           </div>
 
-          {/* TABS DE FILTRADO */}
           <div className="bg-bgInput p-1 rounded-xl flex gap-1 text-[11px]">
             {['ALL', 'ORIGEN', 'DESTINO', 'TC', 'SAB'].map((tab) => (
               <button
@@ -251,14 +237,12 @@ export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
             ))}
           </div>
 
-          {/* LISTA DE HITOS FILTRADOS */}
           <div className="space-y-2 pt-1">
             {filteredMilestones.length > 0 ? (
               filteredMilestones.map((m, index) => {
                 const titleText = m.title || m.label || '';
                 const isArribo = titleText.toLowerCase().includes('llegada del avion') || titleText.toLowerCase().includes('arribo');
                 const itemTime = isArribo ? displayArriboAvionTime : m.calculatedTime;
-
                 return (
                   <div key={`${m.id}-${index}`} className="p-3 rounded-2xl border border-borderCard bg-bgInput flex items-center justify-between">
                     <div>
@@ -286,8 +270,10 @@ export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
             )}
           </div>
         </div>
-
       </div>
     </div>
   );
 }
+
+// ✅ Componente memoizado
+export default memo(FlightGanttView);

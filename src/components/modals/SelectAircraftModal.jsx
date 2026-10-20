@@ -1,51 +1,59 @@
-import React, { useState } from 'react';
+import React, { memo, useState, useMemo, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { Search, X, Plane, Info } from 'lucide-react';
 
-export default function SelectAircraftModal({ isOpen, onClose, onSelect }) {
-  const [searchTerm, setSearchTerm] = useState('');
+// ✅ Constante fuera del componente (no se recrea en cada render)
+const DEFAULT_AIRCRAFTS = [
+  { id: '1', tailNumber: 'CC-BBA', model: '787-9', notes: 'Crew Rest Modificado' },
+  { id: '2', tailNumber: 'CC-BER', model: 'A321', notes: 'Air Berlin' },
+  { id: '3', tailNumber: 'CC-BHZ', model: 'A320', notes: 'A320-NEO, Nueva Cabina' },
+];
 
-  // Fallback seguro en caso de que db.aircrafts esté vacío al inicio
-  const defaultAircrafts = [
-    { id: '1', tailNumber: 'CC-BBA', model: '787-9', notes: 'Crew Rest Modificado' },
-    { id: '2', tailNumber: 'CC-BER', model: 'A321', notes: 'Air Berlin' },
-    { id: '3', tailNumber: 'CC-BHZ', model: 'A320', notes: 'A320-NEO, Nueva Cabina' },
-  ];
+function SelectAircraftModal({ isOpen, onClose, onSelect }) {
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Consulta reactiva a IndexedDB con fallback
   const dbAircrafts = useLiveQuery(async () => {
-    if (!db.aircrafts) return defaultAircrafts;
+    if (!db.aircrafts) return DEFAULT_AIRCRAFTS;
     const list = await db.aircrafts.toArray();
-    return list && list.length > 0 ? list : defaultAircrafts;
+    return list && list.length > 0 ? list : DEFAULT_AIRCRAFTS;
   }, []);
 
-  const aircrafts = dbAircrafts || defaultAircrafts;
+  const aircrafts = dbAircrafts || DEFAULT_AIRCRAFTS;
 
-  if (!isOpen) return null;
+  // ✅ Filtrado y ordenamiento memoizados (solo recalcula si cambia aircrafts o searchTerm)
+  const filteredAircrafts = useMemo(() => {
+    const query = searchTerm.toLowerCase();
+    return aircrafts
+      .filter((ac) => {
+        return (
+          ac.tailNumber?.toLowerCase().includes(query) ||
+          ac.model?.toLowerCase().includes(query) ||
+          (ac.notes && ac.notes.toLowerCase().includes(query))
+        );
+      })
+      .sort((a, b) => (a.tailNumber || '').localeCompare(b.tailNumber || ''));
+  }, [aircrafts, searchTerm]);
 
-  // Filtrado y ordenamiento alfabético por matrícula
-  const filteredAircrafts = aircrafts
-    .filter((ac) => {
-      const query = searchTerm.toLowerCase();
-      return (
-        ac.tailNumber?.toLowerCase().includes(query) ||
-        ac.model?.toLowerCase().includes(query) ||
-        (ac.notes && ac.notes.toLowerCase().includes(query))
-      );
-    })
-    .sort((a, b) => (a.tailNumber || '').localeCompare(b.tailNumber || ''));
-
-  const handleSelect = (aircraft) => {
+  // ✅ Handler memoizado
+  const handleSelect = useCallback((aircraft) => {
     onSelect(aircraft);
     setSearchTerm('');
     onClose();
-  };
+  }, [onSelect, onClose]);
+
+  // ✅ Handler para cerrar limpiando búsqueda
+  const handleClose = useCallback(() => {
+    setSearchTerm('');
+    onClose();
+  }, [onClose]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3">
       <div className="bg-bgCard border border-borderCard w-full max-w-sm rounded-xl p-3.5 shadow-2xl space-y-2.5 animate-in fade-in zoom-in duration-150 text-textPrincipal">
-        
         {/* Cabecera del Modal */}
         <div className="flex items-center justify-between border-b border-borderCard pb-2">
           <div className="flex items-center gap-1.5 text-cyberCyan">
@@ -56,10 +64,7 @@ export default function SelectAircraftModal({ isOpen, onClose, onSelect }) {
           </div>
           <button
             type="button"
-            onClick={() => {
-              setSearchTerm('');
-              onClose();
-            }}
+            onClick={handleClose}
             className="text-textSub hover:text-textPrincipal p-1 rounded-lg transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
@@ -108,15 +113,16 @@ export default function SelectAircraftModal({ isOpen, onClose, onSelect }) {
               </div>
             </button>
           ))}
-
           {filteredAircrafts.length === 0 && (
             <div className="text-center py-5 text-xs text-textSub italic">
               No se encontraron matrículas registradas.
             </div>
           )}
         </div>
-
       </div>
     </div>
   );
 }
+
+// ✅ Componente memoizado
+export default memo(SelectAircraftModal);

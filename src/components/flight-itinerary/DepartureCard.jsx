@@ -1,16 +1,7 @@
-import React, { useState } from 'react';
-import { 
-  Sparkles, 
-  CheckCircle2, 
-  DoorOpen, 
-  Users, 
-  Armchair, 
-  DoorClosed, 
-  ChevronDown, 
-  ChevronUp,
-  PlaneTakeoff,
-  Clock,
-  ArrowRight
+import React, { memo, useState, useMemo, useCallback } from 'react';
+import {
+  Sparkles, CheckCircle2, DoorOpen, Users, Armchair, DoorClosed,
+  ChevronDown, ChevronUp, PlaneTakeoff, Clock, ArrowRight
 } from 'lucide-react';
 import TimeTile from '../common/TimeTile';
 import TimePickerModal from '../modals/TimePickerModal';
@@ -18,27 +9,22 @@ import { useTimePicker } from '../../hooks/useTimePicker';
 import { GANTT_TEMPLATES, calculateMilestoneTimes } from '../../data/ganttTemplates';
 import { timeToMinutes, calculateDuration } from '../../utils/flightUtils';
 
+// ✅ Helper fuera del componente (ya estaba bien)
 const getGanttDepartureTimes = (flightData) => {
   if (!flightData) {
     return { aseoInicio: '--:--', aseoFin: '--:--', embInicio: '--:--', embFin: '--:--', cierrePuertas: '--:--' };
   }
-
   const template =
     GANTT_TEMPLATES.find((t) => t.id === flightData?.ganttTemplateId) ||
     GANTT_TEMPLATES.find((t) => t.aircraftType?.toUpperCase() === flightData?.aircraftType?.toUpperCase()) ||
     GANTT_TEMPLATES[0];
-
   const etd = flightData?.etd || flightData?.std || flightData?.departureTime || flightData?.scheduledDeparture || '--:--';
   const milestones = calculateMilestoneTimes(etd, template?.milestones || []);
-
   const findHitoByKey = (key) => milestones.find((m) => m.key === key);
-
   const hitoAseo = findHitoByKey('limpieza_cabina');
   const hitoEmb = findHitoByKey('embarque_sala') || findHitoByKey('embarque_al_avion');
   const hitoCP = findHitoByKey('cierre_puertas');
-
   const metaCierrePuerta = hitoCP?.calculatedTime || flightData?.cierrePuertasTime || '--:--';
-
   return {
     aseoInicio: hitoAseo?.calculatedTime || '--:--',
     aseoFin: hitoAseo?.calculatedEndTime || '--:--',
@@ -48,31 +34,45 @@ const getGanttDepartureTimes = (flightData) => {
   };
 };
 
-export default function DepartureCard({ flightData, onUpdateFlight, defaultOpen = true }) {
+// ✅ Arrays de campos fuera del componente
+const ASEO_FIELDS = [
+  { key: 'inicioAseoCabina', label: 'Inicio Aseo Cabina', icon: Sparkles },
+  { key: 'finAseoCabina', label: 'Fin Aseo Cabina', icon: CheckCircle2 }
+];
+
+const EMBARQUE_FIELDS = [
+  { key: 'inicioEmbPax', label: 'Inicio Emb. Pax', icon: DoorOpen },
+  { key: 'finEmbPax', label: 'Fin Emb. Pax', icon: Users },
+  { key: 'finAcomodacion', label: 'Fin Acomodación', icon: Armchair }
+];
+
+function DepartureCard({ flightData, onUpdateFlight, defaultOpen = true }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const { modalConfig, handleFieldClick, closeModal, saveModalTime } = useTimePicker(onUpdateFlight);
 
-  const gantt = getGanttDepartureTimes(flightData);
+  // ✅ Handler estable para el click de tiles
+  const handleTileClick = useCallback((key, label, value) => {
+    handleFieldClick(key, label, value);
+  }, [handleFieldClick]);
 
-  const aseoFields = [
-    { key: 'inicioAseoCabina', label: 'Inicio Aseo Cabina', icon: Sparkles },
-    { key: 'finAseoCabina', label: 'Fin Aseo Cabina', icon: CheckCircle2 }
-  ];
+  // ✅ Cálculo de gantt memoizado (solo se recalcula si cambia flightData)
+  const gantt = useMemo(() => getGanttDepartureTimes(flightData), [flightData]);
 
-  const embarqueFields = [
-    { key: 'inicioEmbPax', label: 'Inicio Emb. Pax', icon: DoorOpen },
-    { key: 'finEmbPax', label: 'Fin Emb. Pax', icon: Users },
-    { key: 'finAcomodacion', label: 'Fin Acomodación', icon: Armchair }
-  ];
+  // ✅ Duraciones memoizadas
+  const duracionEmbarqueReal = useMemo(
+    () => calculateDuration(flightData?.inicioEmbPax, flightData?.finAcomodacion),
+    [flightData?.inicioEmbPax, flightData?.finAcomodacion]
+  );
 
-  const duracionAseoReal = calculateDuration(flightData?.inicioAseoCabina, flightData?.finAseoCabina);
-  const duracionEmbarqueReal = calculateDuration(flightData?.inicioEmbPax, flightData?.finAcomodacion);
+  // ✅ Handler estable para el click de cierre de puerta
+  const handleCierrePuertaClick = useCallback(() => {
+    handleFieldClick('cierrePuerta', 'Cierre Puerta', flightData?.cierrePuerta || gantt.cierrePuertas);
+  }, [handleFieldClick, flightData?.cierrePuerta, gantt.cierrePuertas]);
 
   return (
     <>
       <div className="bg-bgCard border border-borderCard rounded-2xl p-3.5 space-y-4 shadow-sm transition-all">
-        {/* ENCABEZADO */}
-        <div 
+        <div
           onClick={() => setIsOpen(!isOpen)}
           className="flex items-center justify-between cursor-pointer select-none group"
         >
@@ -106,15 +106,14 @@ export default function DepartureCard({ flightData, onUpdateFlight, defaultOpen 
                   <span>{gantt.aseoFin}</span>
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-2 pt-0.5">
-                {aseoFields.map(({ key, label, icon }) => (
+                {ASEO_FIELDS.map(({ key, label, icon }) => (
                   <TimeTile
                     key={key}
                     label={label}
                     value={flightData?.[key]}
                     icon={icon}
-                    onClick={() => handleFieldClick(key, label, flightData?.[key])}
+                    onClick={() => handleTileClick(key, label, flightData?.[key])}
                   />
                 ))}
               </div>
@@ -135,19 +134,17 @@ export default function DepartureCard({ flightData, onUpdateFlight, defaultOpen 
                   <span>{gantt.embFin}</span>
                 </div>
               </div>
-
               <div className="grid grid-cols-3 gap-2 pt-0.5">
-                {embarqueFields.map(({ key, label, icon }) => (
+                {EMBARQUE_FIELDS.map(({ key, label, icon }) => (
                   <TimeTile
                     key={key}
                     label={label}
                     value={flightData?.[key]}
                     icon={icon}
-                    onClick={() => handleFieldClick(key, label, flightData?.[key])}
+                    onClick={() => handleTileClick(key, label, flightData?.[key])}
                   />
                 ))}
               </div>
-
               {duracionEmbarqueReal && (
                 <div className="bg-bgInput/80 border border-borderCard rounded-lg p-2 flex items-center justify-between mt-2">
                   <div className="flex items-center gap-1.5">
@@ -163,15 +160,12 @@ export default function DepartureCard({ flightData, onUpdateFlight, defaultOpen 
               )}
             </div>
 
-            {/* SECCIÓN CIERRE PUERTAS (Directa en el grid, sin card exterior) */}
+            {/* SECCIÓN CIERRE PUERTAS */}
             <div className="grid grid-cols-12 gap-2.5 items-stretch pt-1">
-              {/* Lado Izquierdo: Explicación + HORA LÍMITE OTP Destacada */}
               <div className="col-span-7 bg-bgInput border border-borderCard rounded-xl p-2.5 flex items-center justify-between shadow-sm">
                 <p className="text-[11px] leading-tight text-textMain font-semibold pr-2">
                   Para cumplir con el <span className="font-extrabold text-cyberYellow">OTP</span>, la hora límite de Cierre de Puertas es:
                 </p>
-                
-                {/* Insignia OTP llamativa con Leyenda */}
                 <div className="text-center shrink-0">
                   <div className="bg-amber-500/10 border-2 border-cyberYellow text-cyberYellow font-mono font-black text-sm px-3 py-1.5 rounded-xl shadow-[0_0_12px_rgba(245,158,11,0.25)] tracking-wider">
                     {gantt.cierrePuertas}
@@ -181,12 +175,10 @@ export default function DepartureCard({ flightData, onUpdateFlight, defaultOpen 
                   </span>
                 </div>
               </div>
-
-              {/* Lado Derecho: Input Cierre Puerta */}
               <div className="col-span-5">
                 <button
                   type="button"
-                  onClick={() => handleFieldClick('cierrePuerta', 'Cierre Puerta', flightData?.cierrePuerta || gantt.cierrePuertas)}
+                  onClick={handleCierrePuertaClick}
                   className="w-full h-full p-2.5 rounded-xl border border-cyberCyan/50 bg-bgInput hover:border-cyberCyan text-left transition-all active:scale-95 cursor-pointer flex flex-col justify-between shadow-sm group"
                 >
                   <div className="flex items-center justify-between w-full">
@@ -217,3 +209,6 @@ export default function DepartureCard({ flightData, onUpdateFlight, defaultOpen 
     </>
   );
 }
+
+// ✅ Componente memoizado
+export default memo(DepartureCard);

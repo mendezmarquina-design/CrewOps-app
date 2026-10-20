@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { memo } from 'react';
 
-export default function TimeTile({ label, value, icon: Icon, onClick }) {
+function TimeTile({ label, value, icon: Icon, onClick }) {
   const hasVal = Boolean(value) && value !== '--:--' && value !== '--: --';
 
   return (
@@ -15,28 +15,35 @@ export default function TimeTile({ label, value, icon: Icon, onClick }) {
     >
       {/* Marca de agua flotante de fondo */}
       {Icon && (
-        <Icon 
+        <Icon
           className={`absolute -right-2 -bottom-2 w-10 h-10 pointer-events-none transition-all duration-300 group-hover:scale-110 ${
-            hasVal 
-              ? 'text-cyberCyan opacity-20 group-hover:opacity-30' 
+            hasVal
+              ? 'text-cyberCyan opacity-20 group-hover:opacity-30'
               : 'text-textSub opacity-10 group-hover:opacity-20'
-          }`} 
+          }`}
         />
       )}
 
       {/* Contenido principal */}
       <div className="relative z-10 space-y-0.5">
-        <div className={`text-[10px] font-bold tracking-wider uppercase truncate pr-3 transition-colors ${
-          hasVal ? 'text-textPrincipal' : 'text-textSub group-hover:text-textMain'
-        }`}>
+        <div
+          className={`text-[10px] font-bold tracking-wider uppercase truncate pr-3 transition-colors ${
+            hasVal ? 'text-textPrincipal' : 'text-textSub group-hover:text-textMain'
+          }`}
+        >
           {label}
         </div>
-        <div className={`text-base font-black font-mono tracking-wider ${
-          hasVal ? 'text-cyberYellow' : 'text-textSub/60'
-        }`}>
+        <div
+          className={`text-base font-black font-mono tracking-wider ${
+            hasVal ? 'text-cyberYellow' : 'text-textSub/60'
+          }`}
+        >
           {value || '--:--'}
         </div>
       </div>
     </button>
   );
 }
+
+// ✅ Componente memoizado
+export default memo(TimeTile);

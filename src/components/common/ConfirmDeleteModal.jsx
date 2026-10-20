@@ -1,25 +1,25 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Trash2, AlertCircle } from 'lucide-react';
 
-export default function ConfirmDeleteModal({
+function ConfirmDeleteModal({
   isOpen,
   onClose,
   onConfirm,
-  title = "¿ELIMINAR REGISTRO?",
-  description = "Esta acción no se podrá deshacer.",
-  itemName = "",
-  confirmText = "Eliminar",
-  cancelText = "Cancelar",
-  iconType = "trash" // "trash" | "warning"
+  title = '¿ELIMINAR REGISTRO?',
+  description = 'Esta acción no se podrá deshacer.',
+  itemName = '',
+  confirmText = 'Eliminar',
+  cancelText = 'Cancelar',
+  iconType = 'trash'
 }) {
   if (!isOpen) return null;
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn"
       onClick={onClose}
     >
-      <div 
+      <div
         className="bg-bgCard border border-borderCard text-textMain rounded-3xl max-w-sm w-full p-6 shadow-2xl flex flex-col items-center text-center space-y-4 animate-scaleUp"
         onClick={(e) => e.stopPropagation()}
       >
@@ -52,7 +52,6 @@ export default function ConfirmDeleteModal({
           >
             {cancelText}
           </button>
-          
           <button
             type="button"
             onClick={onConfirm}
@@ -65,3 +64,6 @@ export default function ConfirmDeleteModal({
     </div>
   );
 }
+
+// ✅ Componente memoizado (alto impacto por ser reutilizable)
+export default memo(ConfirmDeleteModal);

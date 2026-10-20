@@ -1,23 +1,14 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { memo, useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { X, Plus, Minus, Trash2 } from 'lucide-react';
 
+// ✅ Constantes fuera del componente (no se recrean)
 const DEFAULT_CODES = ['BDAY', 'CHD', 'INF', 'UM', 'WCH', 'YPTA'];
 const AUTOCOMPLETE_SUGGESTIONS = [
-  'AVIH',
-  'BLND',
-  'CPAP',
-  'DEAF',
-  'PETC',
-  'POC',
-  'SPML',
-  'WCHC',
-  'WCHR',
-  'WCHS'
+  'AVIH', 'BLND', 'CPAP', 'DEAF', 'PETC',
+  'POC', 'SPML', 'WCHC', 'WCHR', 'WCHS'
 ];
 
-export default function SpndModal({ isOpen, onClose, spndList = [], onSave }) {
-  if (!isOpen) return null;
-
+function SpndModal({ isOpen, onClose, spndList = [], onSave }) {
   const [counts, setCounts] = useState(() => {
     const initialMap = {};
     DEFAULT_CODES.forEach((code) => { initialMap[code] = 0; });
@@ -34,7 +25,6 @@ export default function SpndModal({ isOpen, onClose, spndList = [], onSave }) {
   const [inputCode, setInputCode] = useState('');
   const [inputCountText, setInputCountText] = useState('1');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -51,18 +41,22 @@ export default function SpndModal({ isOpen, onClose, spndList = [], onSave }) {
     };
   }, []);
 
-  const filteredSuggestions = AUTOCOMPLETE_SUGGESTIONS.filter((sug) =>
-    sug.toLowerCase().includes(inputCode.toLowerCase())
-  );
+  // ✅ Sugerencias filtradas memoizadas
+  const filteredSuggestions = useMemo(() => {
+    return AUTOCOMPLETE_SUGGESTIONS.filter((sug) =>
+      sug.toLowerCase().includes(inputCode.toLowerCase())
+    );
+  }, [inputCode]);
 
-  const updateDefaultCount = (code, delta) => {
+  // ✅ Handlers memoizados
+  const updateDefaultCount = useCallback((code, delta) => {
     setCounts((prev) => ({
       ...prev,
       [code]: Math.max(0, (prev[code] || 0) + delta)
     }));
-  };
+  }, []);
 
-  const handleDefaultInputChange = (code, val) => {
+  const handleDefaultInputChange = useCallback((code, val) => {
     if (val === '' || /^\d+$/.test(val)) {
       const parsed = parseInt(val, 10);
       setCounts((prev) => ({
@@ -70,20 +64,19 @@ export default function SpndModal({ isOpen, onClose, spndList = [], onSave }) {
         [code]: isNaN(parsed) ? 0 : parsed
       }));
     }
-  };
+  }, []);
 
-  const handleCountTextChange = (e) => {
+  const handleCountTextChange = useCallback((e) => {
     const val = e.target.value;
     if (val === '' || /^[1-9]\d*$/.test(val)) {
       setInputCountText(val);
     }
-  };
+  }, []);
 
-  const handleAddCustom = (e) => {
+  const handleAddCustom = useCallback((e) => {
     e?.preventDefault();
     const cleanCode = inputCode.trim().toUpperCase();
     const parsedCount = parseInt(inputCountText || '1', 10);
-
     if (!cleanCode || isNaN(parsedCount) || parsedCount <= 0) return;
 
     if (DEFAULT_CODES.includes(cleanCode)) {
@@ -99,41 +92,42 @@ export default function SpndModal({ isOpen, onClose, spndList = [], onSave }) {
         return [...prev, { code: cleanCode, count: parsedCount }];
       });
     }
-
     setInputCode('');
     setInputCountText('1');
     setIsDropdownOpen(false);
-  };
+  }, [inputCode, inputCountText, updateDefaultCount]);
 
-  const selectSuggestion = (code) => {
+  const selectSuggestion = useCallback((code) => {
     setInputCode(code);
     setIsDropdownOpen(false);
-  };
+  }, []);
 
-  const removeCustom = (codeToRemove) => {
+  const removeCustom = useCallback((codeToRemove) => {
     setCustomList((prev) => prev.filter((item) => item.code !== codeToRemove));
-  };
+  }, []);
 
-  const handleSaveAndClose = () => {
+  const handleSaveAndClose = useCallback(() => {
     const finalDefaults = DEFAULT_CODES
       .filter((code) => counts[code] > 0)
       .map((code) => ({ code, count: counts[code] }));
-
     onSave([...finalDefaults, ...customList]);
     onClose();
-  };
+  }, [counts, customList, onSave, onClose]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-bgCard border border-borderCard w-full max-w-sm sm:max-w-md max-h-[85vh] rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col justify-between space-y-4 text-textMain transition-all">
-        
         {/* Cabecera */}
         <div className="flex items-center justify-between pb-3 border-b border-borderCard shrink-0">
           <div>
             <h3 className="text-sm font-black uppercase tracking-wider text-textPrincipal">
               PASAJEROS SPND
             </h3>
-            <p className="text-xs text-textSub font-medium mt-0.5">Selección rápida de necesidades especiales</p>
+            <p className="text-xs text-textSub font-medium mt-0.5">
+              Selección rápida de necesidades especiales
+            </p>
           </div>
           <button
             type="button"
@@ -149,7 +143,6 @@ export default function SpndModal({ isOpen, onClose, spndList = [], onSave }) {
           {DEFAULT_CODES.map((code) => {
             const currentVal = counts[code] || 0;
             const isActive = currentVal > 0;
-
             return (
               <div
                 key={code}
@@ -162,21 +155,19 @@ export default function SpndModal({ isOpen, onClose, spndList = [], onSave }) {
                 <span className={`text-xs font-mono font-black ${isActive ? 'text-cyberCyan' : 'text-textSub'}`}>
                   {code}
                 </span>
-
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => updateDefaultCount(code, -1)}
                     disabled={currentVal === 0}
                     className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
-                      currentVal > 0 
-                        ? 'bg-bgCard border border-borderCard hover:bg-bgInput text-textMain active:scale-95' 
+                      currentVal > 0
+                        ? 'bg-bgCard border border-borderCard hover:bg-bgInput text-textMain active:scale-95'
                         : 'text-textSub opacity-30 cursor-not-allowed'
                     }`}
                   >
                     <Minus className="w-4 h-4" />
                   </button>
-
                   <input
                     type="text"
                     inputMode="numeric"
@@ -187,7 +178,6 @@ export default function SpndModal({ isOpen, onClose, spndList = [], onSave }) {
                       isActive ? 'text-cyberYellow' : 'text-textSub'
                     }`}
                   />
-
                   <button
                     type="button"
                     onClick={() => updateDefaultCount(code, 1)}
@@ -216,7 +206,6 @@ export default function SpndModal({ isOpen, onClose, spndList = [], onSave }) {
                 }}
                 className="w-full bg-bgInput border border-borderCard focus:border-cyberCyan rounded-2xl px-3.5 py-2.5 text-xs font-mono font-bold text-textMain placeholder:text-textSub/50 focus:outline-none uppercase transition-all"
               />
-
               {/* DESPLEGABLE AUTOCOMPLETADO */}
               {isDropdownOpen && filteredSuggestions.length > 0 && (
                 <div className="absolute bottom-full mb-1 left-0 w-full bg-bgCard border border-cyberCyan/30 rounded-2xl shadow-2xl max-h-40 overflow-y-auto z-50 custom-scrollbar">
@@ -252,7 +241,6 @@ export default function SpndModal({ isOpen, onClose, spndList = [], onSave }) {
               onChange={handleCountTextChange}
               className="w-12 bg-bgInput border border-borderCard focus:border-cyberCyan rounded-2xl text-center text-xs font-mono font-bold text-cyberYellow focus:outline-none transition-all"
             />
-
             <button
               type="submit"
               className="bg-cyberCyan/20 hover:bg-cyberCyan/30 border border-cyberCyan/40 text-cyberCyan px-3.5 rounded-2xl transition-all cursor-pointer flex items-center justify-center active:scale-95 shadow-md"
@@ -291,8 +279,10 @@ export default function SpndModal({ isOpen, onClose, spndList = [], onSave }) {
         >
           Guardar Selección
         </button>
-
       </div>
     </div>
   );
 }
+
+// ✅ Componente memoizado
+export default memo(SpndModal);

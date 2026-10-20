@@ -1,10 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { memo, useState, useEffect, useRef, useCallback } from 'react';
 import { X, Clock } from 'lucide-react';
 
-export default function TimePickerModal({ isOpen, title, initialValue, onClose, onSave }) {
+// ✅ Función pura fuera del componente (no se recrea)
+const getCurrentTime = () => {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
+};
+
+function TimePickerModal({ isOpen, title, initialValue, onClose, onSave }) {
   const [hours, setHours] = useState('09');
   const [minutes, setMinutes] = useState('00');
-
   const hoursRef = useRef(null);
   const minutesRef = useRef(null);
 
@@ -13,72 +20,58 @@ export default function TimePickerModal({ isOpen, title, initialValue, onClose, 
       const isValidValue = initialValue && initialValue !== '--:--' && initialValue !== '--: --';
       const timeToUse = isValidValue ? initialValue : getCurrentTime();
       const [h, m] = timeToUse.split(':');
-      
       setHours(h || '00');
       setMinutes(m || '00');
 
-      // Auto-enfocar el campo de horas al abrir
-      setTimeout(() => hoursRef.current?.focus(), 50);
+      // ✅ Cleanup del timeout para evitar memory leaks
+      const timer = setTimeout(() => hoursRef.current?.focus(), 50);
+      return () => clearTimeout(timer);
     }
   }, [isOpen, initialValue]);
 
-  const getCurrentTime = () => {
-    const now = new Date();
-    const h = String(now.getHours()).padStart(2, '0');
-    const m = String(now.getMinutes()).padStart(2, '0');
-    return `${h}:${m}`;
-  };
-
-  const handleHoursChange = (e) => {
-    let val = e.target.value.replace(/\D/g, ''); // Solo números
-    if (val.length > 2) val = val.slice(-2); // Limitar a 2 dígitos
-
+  const handleHoursChange = useCallback((e) => {
+    let val = e.target.value.replace(/\D/g, '');
+    if (val.length > 2) val = val.slice(-2);
     if (Number(val) > 23) val = '23';
-
     setHours(val);
-
-    // Salto automático a minutos si se ingresan 2 dígitos
     if (val.length === 2) {
       minutesRef.current?.focus();
       minutesRef.current?.select();
     }
-  };
+  }, []);
 
-  const handleMinutesChange = (e) => {
-    let val = e.target.value.replace(/\D/g, ''); // Solo números
-    if (val.length > 2) val = val.slice(-2); // Limitar a 2 dígitos
-
+  const handleMinutesChange = useCallback((e) => {
+    let val = e.target.value.replace(/\D/g, '');
+    if (val.length > 2) val = val.slice(-2);
     if (Number(val) > 59) val = '59';
-
     setMinutes(val);
-  };
+  }, []);
 
-  const handleBlurHours = () => {
+  const handleBlurHours = useCallback(() => {
     setHours((prev) => prev.padStart(2, '0'));
-  };
+  }, []);
 
-  const handleBlurMinutes = () => {
+  const handleBlurMinutes = useCallback(() => {
     setMinutes((prev) => prev.padStart(2, '0'));
-  };
+  }, []);
 
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     const formattedH = hours.padStart(2, '0');
     const formattedM = minutes.padStart(2, '0');
     onSave(`${formattedH}:${formattedM}`);
-  };
+  }, [hours, minutes, onSave]);
 
-  const handleSetCurrentTime = () => {
+  const handleSetCurrentTime = useCallback(() => {
     const [h, m] = getCurrentTime().split(':');
     setHours(h);
     setMinutes(m);
-  };
+  }, []);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-bgCard border border-borderCard w-full max-w-xs rounded-2xl p-4 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
-        
         {/* Cabecera */}
         <div className="flex items-center justify-between border-b border-borderCard pb-3">
           <div className="flex items-center gap-2 min-w-0">
@@ -89,10 +82,9 @@ export default function TimePickerModal({ isOpen, title, initialValue, onClose, 
               {title}
             </h3>
           </div>
-
-          <button 
-            type="button" 
-            onClick={onClose} 
+          <button
+            type="button"
+            onClick={onClose}
             className="p-1 text-textSub hover:text-textMain rounded-lg hover:bg-bgInput transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
@@ -146,7 +138,6 @@ export default function TimePickerModal({ isOpen, title, initialValue, onClose, 
           >
             Cancelar
           </button>
-          
           <button
             type="button"
             onClick={handleSave}
@@ -155,8 +146,10 @@ export default function TimePickerModal({ isOpen, title, initialValue, onClose, 
             Guardar
           </button>
         </div>
-
       </div>
     </div>
   );
 }
+
+// ✅ Componente memoizado
+export default memo(TimePickerModal);

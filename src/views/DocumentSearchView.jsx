@@ -4,9 +4,9 @@ import { db } from '../db/index';
 import BackButton from '../components/common/BackButton';
 import { useDocumentSearch } from '../hooks/useDocumentSearch';
 import PdfViewerModal from '../components/modals/PdfViewerModal';
-import { 
-  Search, FileText, Upload, BookOpen, Loader2, Eye, 
-  Trash2, RefreshCw, Settings2, Filter, HardDrive, Database, X, ArrowLeft
+import {
+  Search, FileText, Upload, BookOpen, Loader2, Eye,
+  Trash2, RefreshCw, Settings2, Filter, HardDrive, Database, X
 } from 'lucide-react';
 
 const CATEGORIES = ['Manuales', 'RTMs', 'RTAs', 'Comunicados', 'Boletines', 'Otros'];
@@ -72,6 +72,12 @@ export default function DocumentSearchView({ onBackToFlights }) {
 
       if (!file) return;
 
+      // Validación de PDF
+      if (file.type !== 'application/pdf') {
+        alert('El archivo debe ser un PDF válido.');
+        return;
+      }
+
       setPendingFile(file);
       setPendingFileHandle(fileHandle);
       setPendingDocId(existingDocId);
@@ -83,7 +89,6 @@ export default function DocumentSearchView({ onBackToFlights }) {
 
   const handleConfirmSave = async (storePdfInDb) => {
     setShowStorageModal(false);
-    
     const res = await processAndSaveDocument({
       file: pendingFile,
       fileHandle: pendingFileHandle,
@@ -139,6 +144,7 @@ export default function DocumentSearchView({ onBackToFlights }) {
 
   const renderHighlightedParagraph = (text, searchTerm) => {
     if (!text || !searchTerm.trim()) return text;
+
     const terms = searchTerm.trim().split(/\s+/).filter(t => t.length > 0);
     const regexPattern = new RegExp(`(${terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
     const parts = text.split(regexPattern);
@@ -155,7 +161,7 @@ export default function DocumentSearchView({ onBackToFlights }) {
               {part}
             </mark>
           ) : (
-            part
+            <React.Fragment key={index}>{part}</React.Fragment>
           )
         )}
       </span>
@@ -164,7 +170,6 @@ export default function DocumentSearchView({ onBackToFlights }) {
 
   return (
     <div className="w-full max-w-xl mx-auto p-3 sm:p-4 font-sans space-y-3" style={{ color: 'var(--text-main)' }}>
-
       {/* Botón Reutilizable Volver */}
       <BackButton onClick={onBackToFlights} />
 
@@ -176,11 +181,16 @@ export default function DocumentSearchView({ onBackToFlights }) {
           borderColor: 'var(--border-color)' 
         }}
       >
-        
         {/* Banner de error */}
         {error && (
           <div className="p-3 border rounded-2xl text-xs flex justify-between items-center bg-rose-500/10 border-rose-500/30 text-rose-500">
             <span>{error}</span>
+            <button 
+              onClick={() => window.location.reload()}
+              className="text-[10px] font-bold underline"
+            >
+              Reintentar
+            </button>
           </div>
         )}
 
@@ -206,7 +216,6 @@ export default function DocumentSearchView({ onBackToFlights }) {
               </p>
             </div>
           </div>
-
           <button
             type="button"
             onClick={() => setShowManager(!showManager)}
@@ -233,7 +242,6 @@ export default function DocumentSearchView({ onBackToFlights }) {
           <label className="text-xs font-bold px-0.5 tracking-wide" style={{ color: 'var(--text-main)' }}>
             Categoría a Indexar:
           </label>
-          
           <div className="flex items-center gap-2">
             <select
               value={uploadCategory}
@@ -249,7 +257,6 @@ export default function DocumentSearchView({ onBackToFlights }) {
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
-
             <button
               type="button"
               onClick={() => handleSelectAndIndex(null)}
@@ -272,7 +279,6 @@ export default function DocumentSearchView({ onBackToFlights }) {
             <Filter className="w-3 h-3" />
             <span>Filtrar por tipo</span>
           </div>
-
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 touch-pan-x no-scrollbar">
             <button
               type="button"
@@ -293,7 +299,6 @@ export default function DocumentSearchView({ onBackToFlights }) {
             >
               TODAS
             </button>
-
             {CATEGORIES.map((cat) => {
               const isSelected = selectedCategory === cat;
               return (
@@ -390,7 +395,6 @@ export default function DocumentSearchView({ onBackToFlights }) {
                         {doc.totalPages} págs · {new Date(doc.updatedAt || Date.now()).toLocaleDateString()}
                       </p>
                     </div>
-
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         type="button"
@@ -402,7 +406,6 @@ export default function DocumentSearchView({ onBackToFlights }) {
                       >
                         <RefreshCw className={`w-4 h-4 ${isProcessing ? 'animate-spin' : ''}`} />
                       </button>
-
                       <button
                         type="button"
                         onClick={() => {
@@ -446,7 +449,6 @@ export default function DocumentSearchView({ onBackToFlights }) {
                   >
                     {res.category}
                   </span>
-
                   <button
                     type="button"
                     onClick={() => handleOpenDocument(res.docId, res.pageNumber)}
@@ -460,7 +462,6 @@ export default function DocumentSearchView({ onBackToFlights }) {
                     <span>Ver Pág. {res.pageNumber}</span>
                   </button>
                 </div>
-
                 <div 
                   className="text-xs p-3 rounded-xl border font-mono leading-relaxed break-words whitespace-pre-line"
                   style={{ 
@@ -471,10 +472,11 @@ export default function DocumentSearchView({ onBackToFlights }) {
                 >
                   {renderHighlightedParagraph(res.content, query)}
                 </div>
-
                 <div className="flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--text-sub)' }}>
                   <FileText className="w-3.5 h-3.5 shrink-0" />
-                  <span className="truncate">Fuente: <strong style={{ color: 'var(--text-main)' }}>{res.title}</strong> (Pág. {res.pageNumber})</span>
+                  <span className="truncate">
+                    Fuente: <strong style={{ color: 'var(--text-main)' }}>{res.title}</strong> (Pág. {res.pageNumber})
+                  </span>
                 </div>
               </div>
             ))}
@@ -519,11 +521,9 @@ export default function DocumentSearchView({ onBackToFlights }) {
                 <X className="w-4 h-4" />
               </button>
             </div>
-
             <p className="text-[11px] leading-relaxed" style={{ color: 'var(--text-sub)' }}>
               Elige cómo deseas guardar <strong style={{ color: 'var(--text-main)' }}>{pendingFile?.name}</strong>:
             </p>
-
             <div className="space-y-2">
               <button
                 type="button"
@@ -540,7 +540,6 @@ export default function DocumentSearchView({ onBackToFlights }) {
                   <div className="text-[10px]" style={{ color: 'var(--text-sub)' }}>Guarda solo el índice. La base de datos se mantiene ligera.</div>
                 </div>
               </button>
-
               <button
                 type="button"
                 onClick={() => handleConfirmSave(true)}

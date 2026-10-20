@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, AlertCircle, Loader2 } from 'lucide-react';
 import { useFlightItinerary } from '../hooks/useFlightItinerary';
-
 import FlightSelector from '../components/flight-itinerary/FlightSelector';
 import FlightHeader from '../components/flight-itinerary/FlightHeader';
+import ArrivalAlert from '../components/flight-itinerary/ArrivalAlert';
 import PreflightCard from '../components/flight-itinerary/PreflightCard';
 import DepartureCard from '../components/flight-itinerary/DepartureCard';
 import LandingCard from '../components/flight-itinerary/LandingCard';
@@ -16,12 +16,12 @@ const getTodayStringISO = () => {
   return new Date().toISOString().split('T')[0];
 };
 
-export default function FlightItineraryView({ 
+export default function FlightItineraryView({
   activeFlightContext,
   onFlightChange,
-  onNewFlight, 
-  onOpenBriefing, 
-  onOpenGce, 
+  onNewFlight,
+  onOpenBriefing,
+  onOpenGce,
   onOpenGantt
 }) {
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -60,7 +60,9 @@ export default function FlightItineraryView({
     return (
       <div className="flex flex-col items-center justify-center min-h-[300px] text-textSub space-y-3">
         <Loader2 className="w-7 h-7 animate-spin text-cyberCyan" />
-        <span className="text-xs font-bold uppercase tracking-wider">Cargando itinerario...</span>
+        <span className="text-xs font-bold uppercase tracking-wider">
+          Cargando itinerario...
+        </span>
       </div>
     );
   }
@@ -69,9 +71,8 @@ export default function FlightItineraryView({
 
   return (
     <div className="space-y-4 max-w-xl mx-auto font-sans text-textMain relative pb-8">
-      
-      {/* BARRA PEGAJOSA */}
-      {hasFlights && <StickyFlightBar flight={currentFlight} />}
+      {/* BARRA PEGAJOSA (siempre visible para evitar layout shift) */}
+      <StickyFlightBar flight={currentFlight} />
 
       {/* SELECTOR DE VUELOS */}
       <FlightSelector
@@ -85,6 +86,14 @@ export default function FlightItineraryView({
         onNewFlight={onNewFlight}
       />
 
+      {/* ALERTA DE ARRIBO (solo aparece si hay vuelos pero no hay hora de arribo registrada) */}
+      {hasFlights && (
+        <ArrivalAlert
+          flight={currentFlight}
+          onUpdateFlight={handleUpdateFlightField}
+        />
+      )}
+
       {/* CONTENIDO PRINCIPAL */}
       {hasFlights ? (
         <>
@@ -97,38 +106,32 @@ export default function FlightItineraryView({
             isPinned={String(pinnedFlightId) === String(currentFlight.id)}
             onTogglePin={() => togglePin(currentFlight.id)}
           />
-
           <SpndCard
             spndList={currentFlight.spndList || []}
             onSaveSpnd={(updatedSpndList) => handleUpdateFlightField('spndList', updatedSpndList)}
             collapsible={true}
             defaultOpen={false}
           />
-
           <PreflightCard
             flightData={currentFlight}
             onUpdateFlight={handleUpdateFlightField}
             defaultOpen={false}
           />
-
           <DepartureCard
             flightData={currentFlight}
             onUpdateFlight={handleUpdateFlightField}
             defaultOpen={true}
           />
-
           <LandingCard
             flightData={currentFlight}
             onUpdateFlight={handleUpdateFlightField}
             defaultOpen={true}
           />
-
           <CreateReportCard
             flightData={currentFlight}
             onUpdateFlight={handleUpdateFlightField}
             onDeleteReport={(reportTarget) => openDeleteReportModal(reportTarget)}
           />
-
           <PostflightCard
             flightData={currentFlight}
             onUpdateFlight={handleUpdateFlightField}
@@ -158,7 +161,6 @@ export default function FlightItineraryView({
             <div className="w-10 h-10 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center mx-auto text-red-400">
               <AlertTriangle className="w-5 h-5" />
             </div>
-
             <div>
               <h3 className="text-xs font-black uppercase text-textMain tracking-wider">
                 ¿Eliminar Reporte?
@@ -167,7 +169,6 @@ export default function FlightItineraryView({
                 Esta acción eliminará el reporte seleccionado del vuelo actual.
               </p>
             </div>
-
             <div className="flex gap-2 pt-1">
               <button
                 type="button"

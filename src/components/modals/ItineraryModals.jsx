@@ -1,11 +1,9 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Plane, X, Search, AlertTriangle } from 'lucide-react';
-// Importamos TimePickerModal desde tu directorio de modales
 import TimePickerModal from '../modals/TimePickerModal';
-
 export { TimePickerModal };
 
-export function TailNumberModal({
+export const TailNumberModal = memo(function TailNumberModal({
   isOpen,
   onClose,
   searchQuery,
@@ -31,7 +29,6 @@ export function TailNumberModal({
             <X className="w-4 h-4" />
           </button>
         </div>
-
         <div className="bg-bgInput border border-borderCard rounded-xl px-3 h-9 flex items-center gap-2">
           <Search className="w-3.5 h-3.5 text-cyberCyan shrink-0" />
           <input
@@ -43,7 +40,6 @@ export function TailNumberModal({
             autoFocus
           />
         </div>
-
         <div className="space-y-1.5 max-h-[250px] overflow-y-auto scrollbar-none pr-1">
           {aircrafts.map((ac, idx) => (
             <div
@@ -69,7 +65,6 @@ export function TailNumberModal({
               )}
             </div>
           ))}
-
           {aircrafts.length === 0 && (
             <p className="text-center text-xs text-textSub italic py-3">
               No se encontraron matrículas.
@@ -79,9 +74,13 @@ export function TailNumberModal({
       </div>
     </div>
   );
-}
+});
 
-export function DeleteConfirmationModal({ isOpen, onClose, onConfirm }) {
+export const DeleteConfirmationModal = memo(function DeleteConfirmationModal({
+  isOpen,
+  onClose,
+  onConfirm
+}) {
   if (!isOpen) return null;
 
   return (
@@ -90,7 +89,6 @@ export function DeleteConfirmationModal({ isOpen, onClose, onConfirm }) {
         <div className="w-10 h-10 rounded-full bg-bgInput border border-rose-500/30 flex items-center justify-center mx-auto text-rose-400">
           <AlertTriangle className="w-5 h-5" />
         </div>
-
         <div>
           <h3 className="text-xs font-black uppercase text-textMain tracking-wider">
             ¿Eliminar Vuelo?
@@ -99,7 +97,6 @@ export function DeleteConfirmationModal({ isOpen, onClose, onConfirm }) {
             Esta acción borrará permanentemente este vuelo del itinerario.
           </p>
         </div>
-
         <div className="flex gap-2 pt-1">
           <button
             type="button"
@@ -119,4 +116,4 @@ export function DeleteConfirmationModal({ isOpen, onClose, onConfirm }) {
       </div>
     </div>
   );
-}
+});

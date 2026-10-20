@@ -1,9 +1,9 @@
 // src/components/ReportModals.jsx
-import React, { useState, useEffect } from 'react';
-import { 
-  Camera, Upload, Download, Copy, Mail, Send, 
-  X, PlusCircle, CheckCircle, Stethoscope, 
-  Trash2, Edit3, ShieldAlert, ChevronDown, ChevronUp, Plus, CheckCircle2 
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import {
+  Camera, Upload, Download, Copy, Mail, Send,
+  X, PlusCircle, CheckCircle, Stethoscope,
+  Trash2, Edit3, ShieldAlert, ChevronDown, ChevronUp, Plus, CheckCircle2
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { encodeToQR, decodeFromQR } from '../../utils/qrEngine';
@@ -57,10 +57,7 @@ function ReportFormFields({ formData, setFormData }) {
 
   const handleRemoveKit = (id) => {
     const currentKits = formData.atencionMedica?.kits || [];
-    handleMedicaChange(
-      'kits',
-      currentKits.filter((k) => k.id !== id)
-    );
+    handleMedicaChange('kits', currentKits.filter((k) => k.id !== id));
   };
 
   const am = formData.atencionMedica || DEFAULT_MEDICAL_DATA;
@@ -101,7 +98,7 @@ function ReportFormFields({ formData, setFormData }) {
         />
       </div>
 
-      {/* DATOS ESTÁNDAR: PASAJERO Y ASIENTO (IGUAL PARA TODOS LOS TIPOS) */}
+      {/* DATOS ESTÁNDAR: PASAJERO Y ASIENTO */}
       <div className="grid grid-cols-3 gap-2">
         <div className="col-span-2">
           <label className="text-[10px] font-extrabold text-textSub uppercase tracking-wider block mb-1">
@@ -143,7 +140,6 @@ function ReportFormFields({ formData, setFormData }) {
               <ShieldAlert className="w-3.5 h-3.5" /> Realiza Reporte CUS
             </span>
           </label>
-
           {formData.realizaCus && (
             <div className="grid grid-cols-2 gap-2 pt-1">
               <button
@@ -188,7 +184,6 @@ function ReportFormFields({ formData, setFormData }) {
               </span>
               {openSec1 ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
-
             {openSec1 && (
               <div className="p-3 space-y-2">
                 <div className="grid grid-cols-2 gap-2">
@@ -207,7 +202,6 @@ function ReportFormFields({ formData, setFormData }) {
                     className="bg-bgCard border border-borderCard text-xs text-textMain rounded-xl px-3 h-9 focus:border-cyberCyan"
                   />
                 </div>
-
                 <input
                   type="text"
                   placeholder="Email"
@@ -215,7 +209,6 @@ function ReportFormFields({ formData, setFormData }) {
                   onChange={(e) => handleMedicaChange('paxEmail', e.target.value)}
                   className="w-full bg-bgCard border border-borderCard text-xs text-textMain rounded-xl px-3 h-9 focus:border-cyberCyan"
                 />
-
                 <input
                   type="text"
                   placeholder="Acompañante"
@@ -223,7 +216,6 @@ function ReportFormFields({ formData, setFormData }) {
                   onChange={(e) => handleMedicaChange('paxAcompanante', e.target.value)}
                   className="w-full bg-bgCard border border-borderCard text-xs text-textMain rounded-xl px-3 h-9 focus:border-cyberCyan"
                 />
-
                 <input
                   type="text"
                   placeholder="Síntomas..."
@@ -231,7 +223,6 @@ function ReportFormFields({ formData, setFormData }) {
                   onChange={(e) => handleMedicaChange('sintomas', e.target.value)}
                   className="w-full bg-bgCard border border-borderCard text-xs text-textMain rounded-xl px-3 h-9 focus:border-cyberCyan"
                 />
-
                 <input
                   type="text"
                   placeholder="Signos Vitales..."
@@ -239,7 +230,6 @@ function ReportFormFields({ formData, setFormData }) {
                   onChange={(e) => handleMedicaChange('signosVitales', e.target.value)}
                   className="w-full bg-bgCard border border-borderCard text-xs text-textMain rounded-xl px-3 h-9 focus:border-cyberCyan"
                 />
-
                 <input
                   type="text"
                   placeholder="Enfermedades Base..."
@@ -264,7 +254,6 @@ function ReportFormFields({ formData, setFormData }) {
                 ¿Existe atención por médico/profesional?
               </span>
             </label>
-
             {am.tieneAtencionMedica && (
               <div className="space-y-2 pt-2 border-t border-cyberGreen/20">
                 <span className="text-[9px] font-black text-cyberGreen uppercase tracking-widest block">
@@ -340,7 +329,6 @@ function ReportFormFields({ formData, setFormData }) {
                 ¿Se abrió algún botiquín de emergencia?
               </span>
             </label>
-
             {am.abrioBotiquin && (
               <div className="space-y-3 pt-2 border-t border-cyberYellow/20">
                 <div className="flex items-center justify-between">
@@ -355,7 +343,6 @@ function ReportFormFields({ formData, setFormData }) {
                     <Plus className="w-3.5 h-3.5" /> Agregar Kit
                   </button>
                 </div>
-
                 {(am.kits || []).map((kit) => (
                   <div key={kit.id} className="bg-bgCard border border-borderCard/80 rounded-xl p-3 space-y-2 relative">
                     <button
@@ -365,7 +352,6 @@ function ReportFormFields({ formData, setFormData }) {
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
-
                     <div className="grid grid-cols-2 gap-2 pr-6">
                       <div>
                         <label className="text-[8px] font-bold text-textSub uppercase block">Tipo Kit</label>
@@ -379,7 +365,6 @@ function ReportFormFields({ formData, setFormData }) {
                           <option value="UPK">UPK</option>
                         </select>
                       </div>
-
                       <div>
                         <label className="text-[8px] font-bold text-textSub uppercase block">Estado Final</label>
                         <select
@@ -392,7 +377,6 @@ function ReportFormFields({ formData, setFormData }) {
                         </select>
                       </div>
                     </div>
-
                     <div>
                       <label className="text-[8px] font-bold text-textSub uppercase block">Insumos Utilizados</label>
                       <input
@@ -403,7 +387,6 @@ function ReportFormFields({ formData, setFormData }) {
                         className="w-full bg-bgInput border border-borderCard text-xs text-textMain rounded-lg px-2.5 h-8"
                       />
                     </div>
-
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="text-[8px] font-bold text-textSub uppercase block">Sello Retirado</label>
@@ -417,7 +400,6 @@ function ReportFormFields({ formData, setFormData }) {
                           <option value="Rojo">Rojo</option>
                         </select>
                       </div>
-
                       <div>
                         <label className="text-[8px] font-bold text-textSub uppercase block">Sello Colocado</label>
                         <select
@@ -431,7 +413,6 @@ function ReportFormFields({ formData, setFormData }) {
                         </select>
                       </div>
                     </div>
-
                     <div className="grid grid-cols-2 gap-2">
                       <input
                         type="text"
@@ -474,13 +455,13 @@ function ReportFormFields({ formData, setFormData }) {
 }
 
 /* ========================================================
-   1. MODAL DE CREACIÓN DE REPORTES (EXPORTACIÓN DEDICADA)
+   MODAL DE CREACIÓN DE REPORTES
    ======================================================== */
-export function NewReportModal({ 
-  isOpen, 
-  onClose, 
-  onSave, 
-  initialCategory = 'Solicitud PAX' 
+export const NewReportModal = memo(function NewReportModal({
+  isOpen,
+  onClose,
+  onSave,
+  initialCategory = 'Solicitud PAX'
 }) {
   const [formData, setFormData] = useState(() => sanitizeReport({ category: initialCategory }));
 
@@ -490,20 +471,19 @@ export function NewReportModal({
     }
   }, [isOpen, initialCategory]);
 
-  if (!isOpen) return null;
-
-  const handleSubmit = (e) => {
+  // ✅ Handler memoizado
+  const handleSubmit = useCallback((e) => {
     e.preventDefault();
     if (!formData.titulo?.trim()) return;
-
     onSave({
       ...formData,
       id: formData.id || `rep_${Date.now()}`,
       createdAt: formData.createdAt || new Date().toISOString()
     });
-
     onClose();
-  };
+  }, [formData, onSave, onClose]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
@@ -512,9 +492,9 @@ export function NewReportModal({
           <h3 className="text-xs font-black text-cyberCyan uppercase tracking-wider flex items-center gap-2">
             <PlusCircle className="w-4 h-4" /> Nuevo Reporte de Vuelo
           </h3>
-          <button 
-            type="button" 
-            onClick={onClose} 
+          <button
+            type="button"
+            onClick={onClose}
             className="text-textSub hover:text-textMain p-1 rounded-lg bg-bgInput transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
@@ -523,7 +503,6 @@ export function NewReportModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <ReportFormFields formData={formData} setFormData={setFormData} />
-
           <div className="flex gap-2 pt-2 border-t border-borderCard/40">
             <button
               type="button"
@@ -543,12 +522,18 @@ export function NewReportModal({
       </div>
     </div>
   );
-}
+});
 
 /* ========================================================
-   2. MODAL DE EDICIÓN DE REPORTES (EXPORTACIÓN DEDICADA)
+   MODAL DE EDICIÓN DE REPORTES
    ======================================================== */
-export function EditReportModal({ isOpen, initialData, onClose, onSave, onDelete }) {
+export const EditReportModal = memo(function EditReportModal({
+  isOpen,
+  initialData,
+  onClose,
+  onSave,
+  onDelete
+}) {
   const [formData, setFormData] = useState(() => sanitizeReport(initialData));
 
   useEffect(() => {
@@ -557,13 +542,22 @@ export function EditReportModal({ isOpen, initialData, onClose, onSave, onDelete
     }
   }, [isOpen, initialData]);
 
-  if (!isOpen || !initialData) return null;
-
-  const handleSubmit = (e) => {
+  // ✅ Handler memoizado
+  const handleSubmit = useCallback((e) => {
     e.preventDefault();
     onSave(formData);
     onClose();
-  };
+  }, [formData, onSave, onClose]);
+
+  // ✅ Handler de eliminación memoizado
+  const handleDelete = useCallback(() => {
+    if (onDelete) {
+      onDelete(formData);
+      onClose();
+    }
+  }, [onDelete, formData, onClose]);
+
+  if (!isOpen || !initialData) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
@@ -572,19 +566,22 @@ export function EditReportModal({ isOpen, initialData, onClose, onSave, onDelete
           <h3 className="text-xs font-black text-cyberCyan uppercase tracking-wider flex items-center gap-2">
             <Edit3 className="w-4 h-4" /> Editar Reporte
           </h3>
-          <button type="button" onClick={onClose} className="text-textSub hover:text-textMain p-1 rounded-lg bg-bgInput transition-colors cursor-pointer">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-textSub hover:text-textMain p-1 rounded-lg bg-bgInput transition-colors cursor-pointer"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <ReportFormFields formData={formData} setFormData={setFormData} />
-
           <div className="flex gap-2 pt-2 border-t border-borderCard/40">
             {onDelete && (
               <button
                 type="button"
-                onClick={() => { onDelete(formData); onClose(); }}
+                onClick={handleDelete}
                 className="p-2.5 bg-cyberCoral/10 text-cyberCoral hover:bg-cyberCoral/20 border border-cyberCoral/30 rounded-xl cursor-pointer"
                 title="Eliminar Reporte"
               >
@@ -609,76 +606,163 @@ export function EditReportModal({ isOpen, initialData, onClose, onSave, onDelete
       </div>
     </div>
   );
-}
+});
 
 /* ========================================================
-   3. RESTO DE MODALES (IMPORTACIÓN, QR, MAIL)
+   MODAL DE IMPORTACIÓN (QR / JSON / MANUAL)
    ======================================================== */
-export function ImportReportModal({ isOpen, onClose, fileInputRef, onFileUpload, manualJson, onManualJsonChange, onProcessJson }) {
-  const qrRegionId = "html5qr-code-full-region";
-  const { scanError, stopScanner } = useQrScanner(isOpen, qrRegionId, (decodedData) => {
-    onManualJsonChange(typeof decodedData === 'object' ? JSON.stringify(decodedData, null, 2) : decodedData);
-  });
+export const ImportReportModal = memo(function ImportReportModal({
+  isOpen,
+  onClose,
+  fileInputRef,
+  onFileUpload,
+  manualJson,
+  onManualJsonChange,
+  onProcessJson
+}) {
+  const qrRegionId = 'html5qr-code-full-region';
 
-  if (!isOpen) return null;
+  // ✅ Callback memoizado para evitar recrear el scanner
+  const handleQrDecoded = useCallback((decodedData) => {
+    onManualJsonChange(
+      typeof decodedData === 'object' ? JSON.stringify(decodedData, null, 2) : decodedData
+    );
+  }, [onManualJsonChange]);
 
-  const handleProcessText = async () => {
+  const { scanError, stopScanner } = useQrScanner(isOpen, qrRegionId, handleQrDecoded);
+
+  // ✅ Handler memoizado
+  const handleProcessText = useCallback(async () => {
     if (!manualJson || !manualJson.trim()) return;
     const result = decodeFromQR(manualJson);
     await stopScanner();
     onProcessJson(result ? JSON.stringify(result.data) : manualJson.trim());
-  };
+  }, [manualJson, stopScanner, onProcessJson]);
+
+  // ✅ Handler para abrir el selector de archivos
+  const handleOpenFilePicker = useCallback(() => {
+    fileInputRef.current?.click();
+  }, [fileInputRef]);
+
+  // ✅ Handler para cerrar deteniendo el scanner
+  const handleCloseWithStop = useCallback(async () => {
+    await stopScanner();
+    onClose();
+  }, [stopScanner, onClose]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
       <div className="bg-bgCard border border-emerald-500/30 rounded-2xl p-4 max-w-sm w-full space-y-4 relative text-textMain shadow-2xl">
-        <button onClick={async () => { await stopScanner(); onClose(); }} className="absolute top-3 right-3 p-1 text-textSub hover:text-textMain bg-bgInput rounded-xl cursor-pointer">
+        <button
+          type="button"
+          onClick={handleCloseWithStop}
+          className="absolute top-3 right-3 p-1 text-textSub hover:text-textMain bg-bgInput rounded-xl cursor-pointer"
+        >
           <X className="w-4 h-4" />
         </button>
+
         <h3 className="text-xs font-black text-emerald-400 uppercase text-center flex items-center justify-center gap-1.5">
           <Camera className="w-4 h-4" /> Importar / Escanear QR
         </h3>
-        <button onClick={() => fileInputRef.current?.click()} className="w-full py-2.5 bg-bgInput border border-emerald-500/30 text-emerald-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer hover:bg-bgCardHeader">
+
+        <button
+          type="button"
+          onClick={handleOpenFilePicker}
+          className="w-full py-2.5 bg-bgInput border border-emerald-500/30 text-emerald-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer hover:bg-bgCardHeader"
+        >
           <Upload className="w-3.5 h-3.5" /> Subir JSON
         </button>
-        <input type="file" ref={fileInputRef} accept=".json" onChange={onFileUpload} className="hidden" />
+        <input
+          type="file"
+          ref={fileInputRef}
+          accept=".json"
+          onChange={onFileUpload}
+          className="hidden"
+        />
+
         <div className="relative aspect-square bg-black rounded-xl overflow-hidden border border-emerald-500/20 flex items-center justify-center">
-          <div id={qrRegionId} className="w-full h-full"></div>
-          {scanError && <p className="absolute inset-0 p-4 text-xs text-cyberCoral flex items-center justify-center text-center bg-black/90">{scanError}</p>}
+          <div id={qrRegionId} className="w-full h-full" />
+          {scanError && (
+            <p className="absolute inset-0 p-4 text-xs text-cyberCoral flex items-center justify-center text-center bg-black/90">
+              {scanError}
+            </p>
+          )}
         </div>
-        <textarea rows={3} placeholder="Pegar datos aquí..." value={manualJson || ''} onChange={(e) => onManualJsonChange(e.target.value)} className="w-full bg-bgInput border border-borderCard rounded-xl p-2.5 text-xs font-mono resize-none" />
-        <button onClick={handleProcessText} className="w-full py-2.5 bg-emerald-600 text-xs font-bold text-white rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-md">
+
+        <textarea
+          rows={3}
+          placeholder="Pegar datos aquí..."
+          value={manualJson || ''}
+          onChange={(e) => onManualJsonChange(e.target.value)}
+          className="w-full bg-bgInput border border-borderCard rounded-xl p-2.5 text-xs font-mono resize-none"
+        />
+
+        <button
+          type="button"
+          onClick={handleProcessText}
+          className="w-full py-2.5 bg-emerald-600 text-xs font-bold text-white rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+        >
           <Download className="w-3.5 h-3.5" /> Procesar
         </button>
       </div>
     </div>
   );
-}
+});
 
-export function QrCodeReportModal({ report, onClose, onCopyJson }) {
+/* ========================================================
+   MODAL DE CÓDIGO QR (EXPORTACIÓN)
+   ======================================================== */
+export const QrCodeReportModal = memo(function QrCodeReportModal({ report, onClose, onCopyJson }) {
+  // ✅ useMemo para no recalcular el string del QR en cada render
+  const qrString = useMemo(() => {
+    if (!report) return '';
+    return encodeToQR('REPORT', report);
+  }, [report]);
+
   if (!report) return null;
-  const qrString = encodeToQR('REPORT', report);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
       <div className="bg-bgCard border border-cyberCyan/30 rounded-2xl p-5 max-w-xs w-full text-center space-y-4 shadow-2xl">
-        <h3 className="text-xs font-black text-cyberCyan uppercase tracking-wider">Código QR</h3>
+        <h3 className="text-xs font-black text-cyberCyan uppercase tracking-wider">
+          Código QR
+        </h3>
         <div className="bg-white p-4 rounded-xl inline-block shadow-lg">
           <QRCodeSVG value={qrString} size={200} level="L" includeMargin />
         </div>
-        <button onClick={() => onCopyJson(report)} className="w-full py-2.5 bg-cyberCyan/10 text-cyberCyan text-xs font-bold rounded-xl border border-cyberCyan/30 flex items-center justify-center gap-1.5 cursor-pointer hover:bg-cyberCyan/20">
+        <button
+          type="button"
+          onClick={() => onCopyJson(report)}
+          className="w-full py-2.5 bg-cyberCyan/10 text-cyberCyan text-xs font-bold rounded-xl border border-cyberCyan/30 flex items-center justify-center gap-1.5 cursor-pointer hover:bg-cyberCyan/20"
+        >
           <Copy className="w-3.5 h-3.5" /> Copiar JSON
         </button>
-        <button onClick={onClose} className="w-full py-2 bg-bgInput text-xs text-textSub rounded-xl cursor-pointer hover:bg-bgCardHeader">
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-full py-2 bg-bgInput text-xs text-textSub rounded-xl cursor-pointer hover:bg-bgCardHeader"
+        >
           Cerrar
         </button>
       </div>
     </div>
   );
-}
+});
 
-export function EmailReportModal({ report, onClose, targetEmail, onEmailChange, onSend }) {
+/* ========================================================
+   MODAL DE ENVÍO POR CORREO
+   ======================================================== */
+export const EmailReportModal = memo(function EmailReportModal({
+  report,
+  onClose,
+  targetEmail,
+  onEmailChange,
+  onSend
+}) {
   if (!report) return null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
       <div className="bg-bgCard border border-cyberCyan/30 rounded-2xl p-4 max-w-xs w-full space-y-3 shadow-2xl">
@@ -686,16 +770,40 @@ export function EmailReportModal({ report, onClose, targetEmail, onEmailChange, 
           <h3 className="text-xs font-black text-cyberCyan uppercase flex items-center gap-1.5">
             <Mail className="w-4 h-4" /> Enviar Correo
           </h3>
-          <button onClick={onClose} className="text-textSub hover:text-textMain cursor-pointer"><X className="w-4 h-4" /></button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-textSub hover:text-textMain cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
-        <input type="email" value={targetEmail || ''} onChange={(e) => onEmailChange(e.target.value)} placeholder="correo@empresa.com" className="w-full bg-bgInput border border-borderCard rounded-xl p-2.5 text-xs text-textMain" />
+
+        <input
+          type="email"
+          value={targetEmail || ''}
+          onChange={(e) => onEmailChange(e.target.value)}
+          placeholder="correo@empresa.com"
+          className="w-full bg-bgInput border border-borderCard rounded-xl p-2.5 text-xs text-textMain"
+        />
+
         <div className="flex gap-2 pt-2">
-          <button onClick={onClose} className="flex-1 py-2 bg-bgInput text-xs text-textSub rounded-xl border border-borderCard cursor-pointer">Cancelar</button>
-          <button onClick={onSend} className="flex-1 py-2 bg-cyberCyan text-black font-black text-xs rounded-xl flex items-center justify-center gap-1 cursor-pointer shadow-md">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-2 bg-bgInput text-xs text-textSub rounded-xl border border-borderCard cursor-pointer"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onSend}
+            className="flex-1 py-2 bg-cyberCyan text-black font-black text-xs rounded-xl flex items-center justify-center gap-1 cursor-pointer shadow-md"
+          >
             <Send className="w-3.5 h-3.5" /> Enviar
           </button>
         </div>
       </div>
     </div>
   );
-}
+});

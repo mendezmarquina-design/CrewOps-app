@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { db } from '../../db';
 import { Save, FileText, Plane, CheckCircle2, AlertCircle, Maximize2, RotateCcw } from 'lucide-react';
 import SpndCard from '../common/SpndCard';
@@ -6,13 +6,12 @@ import BackButton from '../common/BackButton';
 import ExpandedTextareaModal from '../common/ExpandedTextareaModal';
 import { buildBriefingPayload } from '../../utils/flightUtils';
 
-export default function FlightBriefingView({ flight, onBack }) {
+function FlightBriefingView({ flight, onBack }) {
   const [briefingNotes, setBriefingNotes] = useState(flight?.briefingNotes || '');
   const [spndList, setSpndList] = useState(flight?.spndList || []);
   const [isSaving, setIsSaving] = useState(false);
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
   const [toast, setToast] = useState(null);
-
   const isMounted = useRef(true);
 
   useEffect(() => {
@@ -31,19 +30,24 @@ export default function FlightBriefingView({ flight, onBack }) {
 
   if (!flight) return null;
 
-  const showToast = (type, message) => {
+  // ✅ Handler memoizado
+  const showToast = useCallback((type, message) => {
     setToast({ type, message });
     setTimeout(() => {
       if (isMounted.current) setToast(null);
     }, 3000);
-  };
+  }, []);
 
-  const isDirty = briefingNotes !== (flight.briefingNotes || '');
+  // ✅ Memoizado: evita recalcular en cada render
+  const isDirty = useMemo(
+    () => briefingNotes !== (flight.briefingNotes || ''),
+    [briefingNotes, flight.briefingNotes]
+  );
 
-  const handleSaveBriefing = async () => {
+  // ✅ Handler memoizado
+  const handleSaveBriefing = useCallback(async () => {
     if (!flight?.id) return;
     setIsSaving(true);
-
     try {
       const payload = buildBriefingPayload(briefingNotes, spndList);
       await db.flights.update(flight.id, payload);
@@ -60,12 +64,12 @@ export default function FlightBriefingView({ flight, onBack }) {
         setIsSaving(false);
       }
     }
-  };
+  }, [flight?.id, briefingNotes, spndList, showToast]);
 
-  const handleSaveSpndModal = async (updatedSpndList) => {
+  // ✅ Handler memoizado
+  const handleSaveSpndModal = useCallback(async (updatedSpndList) => {
     setSpndList(updatedSpndList);
     if (!flight?.id) return;
-
     try {
       const payload = buildBriefingPayload(briefingNotes, updatedSpndList);
       await db.flights.update(flight.id, payload);
@@ -75,12 +79,11 @@ export default function FlightBriefingView({ flight, onBack }) {
         showToast('error', 'Error al actualizar los datos de SPND');
       }
     }
-  };
+  }, [flight?.id, briefingNotes, showToast]);
 
   return (
     <div className="min-h-screen bg-bgApp text-textMain p-4 font-sans transition-colors duration-200">
       <div className="max-w-xl mx-auto space-y-4 relative pb-8">
-
         {toast && (
           <div className="fixed top-4 right-4 left-4 max-w-sm mx-auto z-50 animate-in fade-in slide-in-from-top duration-200">
             <div className={`p-3.5 rounded-2xl border flex items-center gap-3 shadow-2xl backdrop-blur-md ${
@@ -114,7 +117,6 @@ export default function FlightBriefingView({ flight, onBack }) {
               </p>
             </div>
           </div>
-
           <div className="text-right font-mono text-xs space-y-1 shrink-0 pl-3">
             <div className="bg-bgInput px-2.5 py-1 rounded-xl border border-borderCard/60 flex items-center justify-between gap-2">
               <span className="text-[10px] text-textSub font-bold uppercase">ETD</span>
@@ -168,7 +170,6 @@ export default function FlightBriefingView({ flight, onBack }) {
                 NOTAS BRIEFING
               </span>
             </div>
-
             <div className="flex items-center gap-2">
               {isDirty && (
                 <span className="text-[10px] font-black uppercase tracking-wider text-cyberYellow bg-cyberYellow/10 border border-cyberYellow/30 px-3 py-1 rounded-full">
@@ -185,7 +186,6 @@ export default function FlightBriefingView({ flight, onBack }) {
               </button>
             </div>
           </div>
-
           <div 
             onClick={() => setIsNotesModalOpen(true)}
             className="cursor-pointer group relative"
@@ -201,7 +201,6 @@ export default function FlightBriefingView({ flight, onBack }) {
         </div>
 
         <BackButton onClick={onBack} title="Volver a Control de Vuelos" />
-
       </div>
 
       <ExpandedTextareaModal
@@ -215,3 +214,6 @@ export default function FlightBriefingView({ flight, onBack }) {
     </div>
   );
 }
+
+// ✅ Componente memoizado
+export default memo(FlightBriefingView);

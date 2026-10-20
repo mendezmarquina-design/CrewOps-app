@@ -1,8 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 
-// Función auxiliar para formatear correctamente el número de vuelo sin duplicar prefijos "LA"
+// ---------------------------------------------------------------------------
+// 1. CONSTANTES Y UTILIDADES (fuera del hook, no se recrean)
+// ---------------------------------------------------------------------------
 const formatFlightNum = (flight) => {
   if (!flight) return 'N/A';
   const rawNumber = flight.flightNumber || flight.number || '';
@@ -14,18 +16,25 @@ const formatFlightNum = (flight) => {
   return `${prefix}${numOnly}`;
 };
 
+// Fechas actuales (calculadas una sola vez al cargar el módulo)
+const NOW = new Date();
+const CURRENT_ISO_DATE = NOW.toISOString().split('T')[0];
+const CURRENT_ISO_MONTH = CURRENT_ISO_DATE.slice(0, 7);
+const CURRENT_ISO_YEAR = CURRENT_ISO_DATE.slice(0, 4);
+
+// ---------------------------------------------------------------------------
+// 2. HOOK PRINCIPAL
+// ---------------------------------------------------------------------------
 export function useGceManagement(activeFlight = null) {
   const isFlightContext = Boolean(activeFlight);
+  
+  // ---------------------------------------------------------------------------
+  // 2.1 ESTADOS AGRUPADOS
+  // ---------------------------------------------------------------------------
   const [copiedField, setCopiedField] = useState(null);
   const [activeModalField, setActiveModalField] = useState(null);
   const [editingId, setEditingId] = useState(null);
-
-  // Inicialización dinámica de fecha ISO
-  const now = new Date();
-  const currentIsoDate = now.toISOString().split('T')[0];
-  const currentIsoMonth = currentIsoDate.slice(0, 7);
-  const currentIsoYear = currentIsoDate.slice(0, 4);
-
+  
   const [formData, setFormData] = useState({
     name: '',
     bp: '',
@@ -35,27 +44,56 @@ export function useGceManagement(activeFlight = null) {
     qrhNotes: ''
   });
 
-  // Filtros globales sincronizados con la fecha del sistema
+  // Filtros globales
   const [filterType, setFilterType] = useState('Mes');
   const [searchTerm, setSearchTerm] = useState('');
-  const [dayFilter, setDayFilter] = useState(currentIsoDate);
-  const [monthFilter, setMonthFilter] = useState(currentIsoMonth);
-  const [yearFilter, setYearFilter] = useState(currentIsoYear);
+  const [dayFilter, setDayFilter] = useState(CURRENT_ISO_DATE);
+  const [monthFilter, setMonthFilter] = useState(CURRENT_ISO_MONTH);
+  const [yearFilter, setYearFilter] = useState(CURRENT_ISO_YEAR);
 
-  // Consulta reactiva a IndexedDB via Dexie
+  // ---------------------------------------------------------------------------
+  // 2.2 CONSULTA OPTIMIZADA A DEXIE (con índice de fecha)
+  // ---------------------------------------------------------------------------
+  const targetDb = db.gceReports || db.gces;
+  
   const dexieGces = useLiveQuery(
-    () => (db?.gceReports ? db.gceReports.reverse().toArray() : db?.gces ? db.gces.reverse().toArray() : []),
-    []
-  );
+    async () => {
+      if (!targetDb) return [];
+      
+      // Si estamos en contexto de vuelo, traer solo los de ese vuelo
+      if (isFlightContext && activeFlight?.id) {
+        const flightNum = formatFlightNum(activeFlight);
+        // Intentar filtrar por flightKey o flightId (si están indexados)
+        const byKey = await targetDb.where('flightKey').equals(activeFlight.id).toArray();
+        const byId = await targetDb.where('flightId').equals(activeFlight.id).toArray();
+        const byNum = await targetDb.where('flightNumber').equals(flightNum).toArray();
+        
+        // Combinar y eliminar duplicados
+        const combined = new Map();
+        [...byKey, ...byId, ...byNum].forEach(gce => {
+          combined.set(gce.id, gce);
+        });
+        
+        return Array.from(combined.values()).reverse();
+      }
+      
+      // Si no, traer todos (pero podrías filtrar por fecha aquí también)
+      return await targetDb.reverse().toArray();
+    },
+    [isFlightContext, activeFlight?.id, targetDb]
+  ) || [];
 
-  const copyToClipboard = (text, fieldName) => {
+  // ---------------------------------------------------------------------------
+  // 2.3 HANDLERS MEMOIZADOS
+  // ---------------------------------------------------------------------------
+  const copyToClipboard = useCallback((text, fieldName) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
     setCopiedField(fieldName);
     setTimeout(() => setCopiedField(null), 2000);
-  };
+  }, []);
 
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setEditingId(null);
     setFormData({
       name: '',
@@ -65,9 +103,9 @@ export function useGceManagement(activeFlight = null) {
       qrhReviewed: false,
       qrhNotes: ''
     });
-  };
+  }, []);
 
-  const handleSelectForEdit = (gce) => {
+  const handleSelectForEdit = useCallback((gce) => {
     setEditingId(gce.id);
     setFormData({
       name: gce.name || '',
@@ -78,19 +116,17 @@ export function useGceManagement(activeFlight = null) {
       qrhNotes: gce.qrhNotes || ''
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  }, []);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     if (!formData.name.trim() || !formData.bp.trim()) return;
     if (!editingId && !isFlightContext) return;
 
-    const todayIso = new Date().toISOString().split('T')[0];
+    const todayIso = CURRENT_ISO_DATE;
     const flightNum = formatFlightNum(activeFlight);
 
     try {
-      const targetDb = db.gceReports || db.gces;
-
       if (editingId) {
         await targetDb.update(editingId, {
           name: formData.name.trim(),
@@ -108,7 +144,7 @@ export function useGceManagement(activeFlight = null) {
           improvements: formData.improvements.trim(),
           qrhReviewed: Boolean(formData.qrhReviewed),
           qrhNotes: formData.qrhNotes.trim(),
-          flightKey: activeFlight.id,
+          flightKey: activeFlight?.id || null,
           flightNumber: flightNum,
           date: activeFlight?.date || todayIso,
           createdAt: new Date().toISOString()
@@ -118,29 +154,32 @@ export function useGceManagement(activeFlight = null) {
     } catch (error) {
       console.error('Error al guardar GCE:', error);
     }
-  };
+  }, [formData, editingId, isFlightContext, activeFlight, targetDb, resetForm]);
 
-  const handleDeleteGce = async (e, id) => {
+  const handleDeleteGce = useCallback(async (e, id) => {
     e.stopPropagation();
     if (window.confirm('¿Desea eliminar este registro GCE?')) {
-      const targetDb = db.gceReports || db.gces;
-      await targetDb.delete(id);
-      if (editingId === id) resetForm();
+      try {
+        await targetDb.delete(id);
+        if (editingId === id) resetForm();
+      } catch (error) {
+        console.error('Error al eliminar GCE:', error);
+      }
     }
-  };
+  }, [editingId, targetDb, resetForm]);
 
+  // ---------------------------------------------------------------------------
+  // 2.4 FILTRADO MEMOIZADO
+  // ---------------------------------------------------------------------------
   const filteredGces = useMemo(() => {
     let list = Array.isArray(dexieGces) ? [...dexieGces] : [];
 
+    // Si estamos en contexto de vuelo, ya filtramos en la consulta
     if (isFlightContext) {
-      const activeNum = formatFlightNum(activeFlight);
-      return list.filter(gce => 
-        gce.flightKey === activeFlight.id || 
-        gce.flightId === activeFlight.id || 
-        gce.flightNumber === activeNum
-      );
+      return list;
     }
 
+    // Filtrado por búsqueda
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       list = list.filter(gce => 
@@ -150,6 +189,7 @@ export function useGceManagement(activeFlight = null) {
       );
     }
 
+    // Filtrado por fecha
     if (filterType === 'Día' && dayFilter) {
       list = list.filter(gce => gce.date === dayFilter);
     } else if (filterType === 'Mes' && monthFilter) {
@@ -159,8 +199,11 @@ export function useGceManagement(activeFlight = null) {
     }
 
     return list;
-  }, [dexieGces, isFlightContext, activeFlight, filterType, dayFilter, monthFilter, yearFilter, searchTerm]);
+  }, [dexieGces, isFlightContext, filterType, dayFilter, monthFilter, yearFilter, searchTerm]);
 
+  // ---------------------------------------------------------------------------
+  // 2.5 RETURN
+  // ---------------------------------------------------------------------------
   return {
     isFlightContext,
     copiedField,

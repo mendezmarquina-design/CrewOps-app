@@ -1,19 +1,54 @@
-import React from 'react';
-import { FileText, BarChart2, Users, X } from 'lucide-react';
+import React, { useState, memo, useMemo, useCallback } from 'react';
+import { FileText, BarChart2, Users, X, ChevronDown, ChevronUp, Users as UsersIcon } from 'lucide-react';
 import TimePickerModal from '../modals/TimePickerModal';
 import SelectAircraftModal from '../modals/SelectAircraftModal';
-import { calculateDelay } from '../../utils/flightUtils';
+import { calculateDelay, calculateMinutesDifference } from '../../utils/flightUtils';
 
-export default function FlightHeader({ 
-  flight, 
+function FlightHeader({
+  flight,
   itineraryController,
-  onOpenBriefing, 
-  onOpenGantt, 
-  onOpenGCEs 
+  onOpenBriefing,
+  onOpenGantt,
+  onOpenGCEs
 }) {
-  if (!flight) return null;
+  // ✨ Estado para controlar si el header está desplegado (falso por defecto)
+  const [isOpen, setIsOpen] = useState(false);
 
-  // Extraemos las acciones y estados del controlador recibido desde la vista padre
+  // ✅ Memoizar cálculos de validación y demoras
+  const isArriboAvionValid = useMemo(() => {
+    return Boolean(
+      flight?.arriboAvion &&
+      flight.arriboAvion !== '--:--' &&
+      flight.arriboAvion.trim() !== ''
+    );
+  }, [flight?.arriboAvion]);
+
+  const depDelay = useMemo(
+    () => calculateDelay(flight?.etd || '19:25', flight?.atd),
+    [flight?.etd, flight?.atd]
+  );
+
+  const arrDelay = useMemo(
+    () => calculateDelay(flight?.eta || '23:30', flight?.ata),
+    [flight?.eta, flight?.ata]
+  );
+
+  // ✅ NUEVO: Cálculo de TAT (ETD - Arribo Avión)
+  const tatDisplay = useMemo(() => {
+    if (!isArriboAvionValid || !flight?.etd) return '--';
+    const minutes = calculateMinutesDifference(flight.arriboAvion, flight.etd);
+    if (minutes === null || minutes < 0) return '--';
+    
+    // Formatear: si es más de 60 min, mostrar horas y minutos
+    if (minutes >= 60) {
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      return `${hours}h ${mins}m`;
+    }
+    return `${minutes} min`;
+  }, [isArriboAvionValid, flight?.arriboAvion, flight?.etd]);
+
+  // Extraer acciones del controlador
   const {
     flightPrefix,
     flightNumberOnly,
@@ -31,223 +66,280 @@ export default function FlightHeader({
     handleSelectAircraft
   } = itineraryController;
 
-  // Validación: Comprobar si el valor de Arribo Avión es válido
-  const isArriboAvionValid = Boolean(
-    flight.arriboAvion && 
-    flight.arriboAvion !== '--:--' && 
-    flight.arriboAvion.trim() !== ''
-  );
+  // ✅ Handlers memoizados
+  const handleOpenAircraftModal = useCallback(() => {
+    setIsAircraftModalOpen(true);
+  }, [setIsAircraftModalOpen]);
 
-  // Cálculo de demoras mediante la función auxiliar externa
-  const depDelay = calculateDelay(flight.etd || '19:25', flight.atd);
-  const arrDelay = calculateDelay(flight.eta || '23:30', flight.ata);
+  const handleOpenPaxModal = useCallback(() => {
+    setIsPaxModalOpen(true);
+  }, [setIsPaxModalOpen]);
+
+  const handleClosePaxModal = useCallback(() => {
+    setIsPaxModalOpen(false);
+  }, [setIsPaxModalOpen]);
+
+  const handleCloseAircraftModal = useCallback(() => {
+    setIsAircraftModalOpen(false);
+  }, [setIsAircraftModalOpen]);
+
+  const handleOpenTimeModalAtd = useCallback(() => {
+    openTimeModal('REAL (ATD)', 'atd', flight?.atd);
+  }, [openTimeModal, flight?.atd]);
+
+  const handleOpenTimeModalAta = useCallback(() => {
+    openTimeModal('REAL (ATA)', 'ata', flight?.ata);
+  }, [openTimeModal, flight?.ata]);
+
+  const handleOpenTimeModalOnPista = useCallback(() => {
+    openTimeModal('ON (PISTA)', 'onPista', flight?.onPista);
+  }, [openTimeModal, flight?.onPista]);
+
+  const handleOpenGanttClick = useCallback(() => {
+    if (isArriboAvionValid && onOpenGantt) {
+      onOpenGantt(flight);
+    }
+  }, [isArriboAvionValid, onOpenGantt, flight]);
+
+  const handleOpenBriefingClick = useCallback(() => {
+    if (onOpenBriefing) onOpenBriefing(flight);
+  }, [onOpenBriefing, flight]);
+
+  const handleToggleOpen = useCallback(() => {
+    setIsOpen((prev) => !prev);
+  }, []);
+
+  if (!flight) return null;
+
+  const hasTailNumber = Boolean(flight.tailNumber && flight.tailNumber.trim() !== '');
 
   return (
     <>
-      <div className="bg-bgCard border border-borderCard rounded-2xl p-4 space-y-3 shadow-sm max-w-md mx-auto">
+      <div className="bg-bgCard border border-borderCard rounded-2xl shadow-sm max-w-md mx-auto overflow-hidden transition-all">
         
-        {/* FILA SUPERIOR: Vuelo, Ruta, Matrícula */}
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div>
-            <span className="text-[10px] font-bold text-textPrincipal uppercase tracking-wider block mb-1">
-              VUELO
-            </span>
-            <div className="bg-bgInput border border-borderCard rounded-xl h-9 flex items-center justify-center px-1">
-              <span className="text-base font-black text-cyberCoral font-mono tracking-wider italic">
-                {flightPrefix}
-                {flightNumberOnly || '777'}
+        {/* CABECERA COMPACTA (SIEMPRE VISIBLE) */}
+        <div
+          onClick={handleToggleOpen}
+          className="flex items-center justify-between p-3 cursor-pointer hover:bg-bgCardHeader/50 transition-colors select-none"
+        >
+          {/* LADO IZQUIERDO: Vuelo, Ruta, Matrícula */}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="bg-bgInput border border-borderCard p-2 rounded-xl shrink-0 flex items-center justify-center text-textPrincipal">
+              <span className="text-sm font-black text-cyberCoral font-mono italic">
+                {flightPrefix}{flightNumberOnly || '777'}
               </span>
             </div>
-          </div>
-
-          <div>
-            <span className="text-[10px] font-bold text-textPrincipal uppercase tracking-wider block mb-1">
-              RUTA / TRAMO
-            </span>
-            <div className="bg-bgInput border border-borderCard rounded-xl h-9 flex items-center justify-center">
-              <span className="text-sm font-black font-mono text-cyberCyan tracking-wider">
-                {flight.route || 'LEW-W'}
-              </span>
+            <div className="min-w-0">
+              <p className="text-xs font-mono font-bold text-cyberCyan truncate">
+                {flight.route || '---'}
+              </p>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold text-textSub">Matrícula:</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenAircraftModal();
+                  }}
+                  className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded transition-all ${
+                    hasTailNumber
+                      ? 'text-cyberYellow hover:text-cyberCyan hover:bg-cyberCyan/10'
+                      : 'text-cyberCoral bg-cyberCoral/10 border border-cyberCoral/30 animate-pulse hover:bg-cyberCoral/20'
+                  }`}
+                >
+                  {hasTailNumber ? flight.tailNumber : 'Sin matrícula'}
+                </button>
+              </div>
             </div>
           </div>
-
-          <div>
-            <span className="text-[10px] font-bold text-textPrincipal uppercase tracking-wider block mb-1">
-              MATRÍCULA
-            </span>
+          
+          {/* LADO DERECHO: Total PAX (más prominente) + Chevron */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* ✨ Botón Total PAX con más espacio horizontal */}
             <button
               type="button"
-              onClick={() => setIsAircraftModalOpen(true)}
-              className="w-full bg-bgInput hover:bg-bgCardHeader border border-borderCard hover:border-cyberCyan/50 rounded-xl h-9 flex items-center justify-center transition-all cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenPaxModal();
+              }}
+              className="flex items-center gap-2 bg-bgInput border border-borderCard hover:border-cyberYellow/50 rounded-xl px-3 py-1.5 transition-all cursor-pointer active:scale-95"
+              title="Ingresar Total Pasajeros"
             >
-              <span className="text-sm font-black font-mono text-cyberYellow tracking-wider">
-                {flight.tailNumber || 'PS-LAA'}
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* TRIPLE BOTÓN DE ACCIÓN */}
-        <div className="grid grid-cols-3 gap-2">
-          <button
-            type="button"
-            disabled={!isArriboAvionValid}
-            onClick={() => isArriboAvionValid && onOpenGantt && onOpenGantt(flight)}
-            title={!isArriboAvionValid ? 'Ingrese el horario de Arribo Avión para activar la Carta Gantt' : ''}
-            className={`w-full py-2.5 px-1 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-md transition-all ${
-              isArriboAvionValid
-                ? 'bg-cyberPurple hover:brightness-125 border border-cyberPurpleBorder text-white cursor-pointer active:scale-[0.98]'
-                : 'bg-bgInput/50 border border-borderCard/40 text-textSub/40 cursor-not-allowed opacity-50 shadow-none'
-            }`}
-          >
-            <BarChart2 className={`w-4 h-4 shrink-0 ${isArriboAvionValid ? 'text-white' : 'text-textSub/40'}`} />
-            <span className="truncate">Carta Gantt</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onOpenBriefing && onOpenBriefing(flight)}
-            className="w-full bg-cyberPurple hover:brightness-125 border border-cyberPurpleBorder text-white py-2.5 px-1 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer active:scale-[0.98]"
-          >
-            <FileText className="w-4 h-4 text-white shrink-0" />
-            <span className="truncate">Briefing</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onOpenGCEs}
-            className="w-full bg-cyberPurple hover:brightness-125 border border-cyberPurpleBorder text-white py-2.5 px-1 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer active:scale-[0.98]"
-          >
-            <Users className="w-4 h-4 text-white shrink-0" />
-            <span className="truncate">GCEs</span>
-          </button>
-        </div>
-
-        {/* PANEL DE HORARIOS Y PAX */}
-        <div className="grid grid-cols-[1fr_28%_1fr] gap-2 text-center items-stretch">
-          
-          {/* DEPARTURE */}
-          <div className="border border-borderCard bg-bgCardHeader/30 rounded-2xl p-2 flex flex-col justify-between h-full space-y-1">
-            <div>
-              <span className="text-[9px] font-bold text-textPrincipal uppercase tracking-wider block mb-1">
-                DEPARTURE
-              </span>
-              <div className="bg-bgInput border border-borderCard rounded-xl h-9 flex items-center justify-center">
-                <span className="text-base sm:text-lg font-black font-mono text-cyberGreen tracking-tight">
-                  {flight.etd || '19:25'}
+              <UsersIcon className="w-4 h-4 text-cyberCyan shrink-0" />
+              <div className="flex flex-col items-start leading-none">
+                <span className="text-[8px] font-black text-textSub uppercase tracking-wider">
+                  PAX
                 </span>
-              </div>
-            </div>
-
-            <div>
-              <span className="text-[9px] font-bold text-textPrincipal uppercase tracking-wider block mb-1">
-                REAL (ATD)
-              </span>
-              <button
-                type="button"
-                onClick={() => openTimeModal('REAL (ATD)', 'atd', flight.atd)}
-                className="w-full bg-bgInput border border-borderCard rounded-xl h-9 flex items-center justify-center transition-all cursor-pointer"
-              >
-                <span className="text-base sm:text-lg font-black font-mono text-cyberYellow">
-                  {flight.atd || '--:--'}
-                </span>
-              </button>
-            </div>
-
-            <div className="h-4 flex items-center justify-center">
-              {depDelay !== null ? (
-                <span className={`text-xs font-black font-mono ${depDelay > 0 ? 'text-red-500' : 'text-cyberGreen'}`}>
-                  {depDelay > 0 ? `+${depDelay} min` : depDelay < 0 ? `${depDelay} min` : 'On Time'}
-                </span>
-              ) : (
-                <span className="text-xs opacity-0">-</span>
-              )}
-            </div>
-          </div>
-
-          {/* ON PISTA & TOTAL PAX / SPAX */}
-          <div className="border border-borderCard bg-bgCardHeader/30 rounded-2xl p-2 flex flex-col justify-between h-full space-y-1">
-            <div>
-              <span className="text-[8px] font-bold text-textPrincipal uppercase tracking-tight block mb-1">
-                ON (PISTA)
-              </span>
-              <button
-                type="button"
-                onClick={() => openTimeModal('ON (PISTA)', 'onPista', flight.onPista)}
-                className="w-full bg-bgInput border border-borderCard rounded-xl h-9 flex items-center justify-center transition-all cursor-pointer"
-              >
-                <span className="text-xs sm:text-sm font-black font-mono text-cyberCyan">
-                  {flight.onPista || '--:--'}
-                </span>
-              </button>
-            </div>
-
-            <div>
-              <span className="text-[9px] font-bold text-textPrincipal uppercase tracking-wider block mb-1">
-                TOTAL PAX
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsPaxModalOpen(true)}
-                className="w-full bg-bgInput border border-borderCard rounded-xl h-9 flex items-center justify-center transition-all shadow-sm cursor-pointer"
-              >
-                <span className="text-base font-black font-mono text-cyberYellow">
+                <span className="text-base font-black font-mono text-cyberYellow leading-none">
                   {flight.totalPax ?? 0}
                 </span>
+              </div>
+            </button>
+
+            {/* Chevron (sin el indicador circular) */}
+            {isOpen ? (
+              <ChevronUp className="w-5 h-5 text-textSub shrink-0" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-textSub shrink-0" />
+            )}
+          </div>
+        </div>
+
+        {/* CONTENIDO DESPLEGABLE */}
+        {isOpen && (
+          <div className="p-4 pt-0 space-y-3 border-t border-borderCard/50">
+            
+            {/* TRIPLE BOTÓN DE ACCIÓN */}
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                disabled={!isArriboAvionValid}
+                onClick={handleOpenGanttClick}
+                title={!isArriboAvionValid ? 'Ingrese el horario de Arribo Avión para activar la Carta Gantt' : ''}
+                className={`w-full py-2.5 px-1 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-md transition-all ${
+                  isArriboAvionValid
+                    ? 'bg-cyberPurple hover:brightness-125 border border-cyberPurpleBorder text-white cursor-pointer active:scale-[0.98]'
+                    : 'bg-bgInput/50 border border-borderCard/40 text-textSub/40 cursor-not-allowed opacity-50 shadow-none'
+                }`}
+              >
+                <BarChart2 className={`w-4 h-4 shrink-0 ${isArriboAvionValid ? 'text-white' : 'text-textSub/40'}`} />
+                <span className="truncate">Carta Gantt</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenBriefingClick}
+                className="w-full bg-cyberPurple hover:brightness-125 border border-cyberPurpleBorder text-white py-2.5 px-1 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer active:scale-[0.98]"
+              >
+                <FileText className="w-4 h-4 text-white shrink-0" />
+                <span className="truncate">Briefing</span>
+              </button>
+              <button
+                type="button"
+                onClick={onOpenGCEs}
+                className="w-full bg-cyberPurple hover:brightness-125 border border-cyberPurpleBorder text-white py-2.5 px-1 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer active:scale-[0.98]"
+              >
+                <Users className="w-4 h-4 text-white shrink-0" />
+                <span className="truncate">GCEs</span>
               </button>
             </div>
 
-            <div className="h-4 flex items-center justify-center">
-              {Boolean(flight.spaxTime && Number(flight.totalPax) > 0) ? (
-                <span className="text-tiny font-black font-mono text-cyberCyan tracking-tight italic">
-                  SPAX: {flight.spaxTime}
-                </span>
-              ) : (
-                <span className="text-[10px] opacity-0">-</span>
-              )}
-            </div>
-          </div>
+            {/* PANEL DE HORARIOS */}
+            <div className="grid grid-cols-[1fr_28%_1fr] gap-2 text-center items-stretch">
+              {/* DEPARTURE */}
+              <div className="border border-borderCard bg-bgCardHeader/30 rounded-2xl p-2 flex flex-col justify-between h-full space-y-1">
+                <div>
+                  <span className="text-[9px] font-bold text-textPrincipal uppercase tracking-wider block mb-1">
+                    DEPARTURE
+                  </span>
+                  <div className="bg-bgInput border border-borderCard rounded-xl h-9 flex items-center justify-center">
+                    <span className="text-base sm:text-lg font-black font-mono text-cyberGreen tracking-tight">
+                      {flight.etd || '19:25'}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[9px] font-bold text-textPrincipal uppercase tracking-wider block mb-1">
+                    REAL (ATD)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleOpenTimeModalAtd}
+                    className="w-full bg-bgInput border border-borderCard rounded-xl h-9 flex items-center justify-center transition-all cursor-pointer"
+                  >
+                    <span className="text-base sm:text-lg font-black font-mono text-cyberYellow">
+                      {flight.atd || '--:--'}
+                    </span>
+                  </button>
+                </div>
+                <div className="h-4 flex items-center justify-center">
+                  {depDelay !== null ? (
+                    <span className={`text-xs font-black font-mono ${depDelay > 0 ? 'text-red-500' : 'text-cyberGreen'}`}>
+                      {depDelay > 0 ? `+${depDelay} min` : depDelay < 0 ? `${depDelay} min` : 'On Time'}
+                    </span>
+                  ) : (
+                    <span className="text-xs opacity-0">-</span>
+                  )}
+                </div>
+              </div>
 
-          {/* ARRIVAL */}
-          <div className="border border-borderCard bg-bgCardHeader/30 rounded-2xl p-2 flex flex-col justify-between h-full space-y-1">
-            <div>
-              <span className="text-[9px] font-bold text-textPrincipal uppercase tracking-wider block mb-1">
-                ARRIVAL
-              </span>
-              <div className="bg-bgInput border border-borderCard rounded-xl h-9 flex items-center justify-center">
-                <span className="text-base sm:text-lg font-black font-mono text-cyberGreen tracking-tight">
-                  {flight.eta || '23:30'}
-                </span>
+              {/* ON PISTA & TAT */}
+              <div className="border border-borderCard bg-bgCardHeader/30 rounded-2xl p-2 flex flex-col justify-between h-full space-y-1">
+                <div>
+                  <span className="text-[8px] font-bold text-textPrincipal uppercase tracking-tight block mb-1">
+                    ON (PISTA)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleOpenTimeModalOnPista}
+                    className="w-full bg-bgInput border border-borderCard rounded-xl h-9 flex items-center justify-center transition-all cursor-pointer"
+                  >
+                    <span className="text-xs sm:text-sm font-black font-mono text-cyberCyan">
+                      {flight.onPista || '--:--'}
+                    </span>
+                  </button>
+                </div>
+                {/* ✅ TAT (Turn Around Time) */}
+                <div>
+                  <span className="text-[9px] font-bold text-textPrincipal uppercase tracking-wider block mb-1">
+                    TAT
+                  </span>
+                  <div className="bg-bgInput border border-borderCard rounded-xl h-9 flex items-center justify-center">
+                    <span className="text-base font-black font-mono text-cyberCoral">
+                      {tatDisplay}
+                    </span>
+                  </div>
+                </div>
+                <div className="h-4 flex items-center justify-center">
+                  {flight.spaxTime && Number(flight.totalPax) > 0 ? (
+                    <span className="text-[10px] font-black font-mono text-cyberCyan tracking-tight italic">
+                      SPAX: {flight.spaxTime}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] opacity-0">-</span>
+                  )}
+                </div>
+              </div>
+
+              {/* ARRIVAL */}
+              <div className="border border-borderCard bg-bgCardHeader/30 rounded-2xl p-2 flex flex-col justify-between h-full space-y-1">
+                <div>
+                  <span className="text-[9px] font-bold text-textPrincipal uppercase tracking-wider block mb-1">
+                    ARRIVAL
+                  </span>
+                  <div className="bg-bgInput border border-borderCard rounded-xl h-9 flex items-center justify-center">
+                    <span className="text-base sm:text-lg font-black font-mono text-cyberGreen tracking-tight">
+                      {flight.eta || '23:30'}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[9px] font-bold text-textPrincipal uppercase tracking-wider block mb-1">
+                    REAL (ATA)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleOpenTimeModalAta}
+                    className="w-full bg-bgInput border border-borderCard rounded-xl h-9 flex items-center justify-center transition-all cursor-pointer"
+                  >
+                    <span className="text-base sm:text-lg font-black font-mono text-cyberYellow">
+                      {flight.ata || '--:--'}
+                    </span>
+                  </button>
+                </div>
+                <div className="h-4 flex items-center justify-center">
+                  {arrDelay !== null ? (
+                    <span className={`text-xs font-black font-mono ${arrDelay > 0 ? 'text-cyberCoral' : 'text-cyberGreen'}`}>
+                      {arrDelay > 0 ? `+${arrDelay} min` : arrDelay < 0 ? `${arrDelay} min` : 'On Time'}
+                    </span>
+                  ) : (
+                    <span className="text-xs opacity-0">-</span>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div>
-              <span className="text-[9px] font-bold text-textPrincipal uppercase tracking-wider block mb-1">
-                REAL (ATA)
-              </span>
-              <button
-                type="button"
-                onClick={() => openTimeModal('REAL (ATA)', 'ata', flight.ata)}
-                className="w-full bg-bgInput border border-borderCard rounded-xl h-9 flex items-center justify-center transition-all cursor-pointer"
-              >
-                <span className="text-base sm:text-lg font-black font-mono text-cyberYellow">
-                  {flight.ata || '--:--'}
-                </span>
-              </button>
-            </div>
-
-            <div className="h-4 flex items-center justify-center">
-              {arrDelay !== null ? (
-                <span className={`text-xs font-black font-mono ${arrDelay > 0 ? 'text-cyberCoral' : 'text-cyberGreen'}`}>
-                  {arrDelay > 0 ? `+${arrDelay} min` : arrDelay < 0 ? `${arrDelay} min` : 'On Time'}
-                </span>
-              ) : (
-                <span className="text-xs opacity-0">-</span>
-              )}
-            </div>
           </div>
-
-        </div>
+        )}
       </div>
 
       {/* MODAL INGRESAR PASAJEROS */}
@@ -260,13 +352,12 @@ export default function FlightHeader({
               </h3>
               <button
                 type="button"
-                onClick={() => setIsPaxModalOpen(false)}
+                onClick={handleClosePaxModal}
                 className="text-textSub hover:text-textMain p-1 rounded-lg cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-
             <div className="bg-bgInput border border-borderCard rounded-xl p-3 flex items-center justify-center">
               <input
                 type="number"
@@ -278,11 +369,10 @@ export default function FlightHeader({
                 className="w-full bg-transparent text-center text-2xl font-black text-cyberYellow font-mono focus:outline-none"
               />
             </div>
-
             <div className="flex items-center gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => setIsPaxModalOpen(false)}
+                onClick={handleClosePaxModal}
                 className="flex-1 bg-bgCardHeader hover:bg-bgCard text-textSub border border-borderCard py-2 rounded-xl text-xs font-black transition-all cursor-pointer"
               >
                 Cancelar
@@ -307,12 +397,14 @@ export default function FlightHeader({
         onClose={closeTimeModal}
         onSave={handleSaveTime}
       />
-
       <SelectAircraftModal
         isOpen={isAircraftModalOpen}
-        onClose={() => setIsAircraftModalOpen(false)}
+        onClose={handleCloseAircraftModal}
         onSelect={handleSelectAircraft}
       />
     </>
   );
 }
+
+// ✅ Componente memoizado
+export default memo(FlightHeader);
