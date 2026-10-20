@@ -48,7 +48,7 @@ export function useFlightItinerary(
   });
 
   // ---------------------------------------------------------------------------
-  // 3. SINCRONIZACIÓN EXTERNA Y CONSULTA REACTIVA EN DEXIE DB
+  // 3. SINCRONIZACIÓN EXTERNA
   // ---------------------------------------------------------------------------
   useEffect(() => {
     if (externalSelectedFlightId !== null && externalSelectedFlightId !== undefined) {
@@ -60,32 +60,37 @@ export function useFlightItinerary(
   // Resetear selección manual al cambiar de fecha
   useEffect(() => {
     setSelectedFlightId(null);
+    setPinnedFlightId(null); // También limpiamos el pin al cambiar de día
   }, [selectedDate]);
 
-  // Consulta reactiva a Dexie DB
-  const safeAllFlights = useLiveQuery(
+  // ---------------------------------------------------------------------------
+  // 4. CONSULTA REACTIVA OPTIMIZADA EN DEXIE DB (¡MEJORA CLAVE!)
+  // ---------------------------------------------------------------------------
+  const dayFlights = useLiveQuery(
     async () => {
-      const results = await db.flights.toArray();
-      return results.sort((a, b) => (a.etd || '00:00').localeCompare(b.etd || '00:00'));
+      // 1. Filtra usando el índice 'date' (muy rápido, no trae toda la BD)
+      const flightsOnDate = await db.flights.where('date').equals(selectedDate).toArray();
+      
+      // 2. Ordena solo el subconjunto del día en memoria
+      return flightsOnDate.sort((a, b) => (a.etd || '00:00').localeCompare(b.etd || '00:00'));
     },
-    [],
-    []
+    [selectedDate], // Dependencia correcta: se re-ejecuta solo si cambia la fecha
+    [] // Valor inicial (array vacío) mientras carga
   );
 
-  const isLoading = safeAllFlights === undefined;
-  const dayFlights = (safeAllFlights || []).filter((f) => f.date === selectedDate);
+  const isLoading = dayFlights === undefined;
 
   // ---------------------------------------------------------------------------
-  // 4. DETERMINACIÓN DEL VUELO ACTUAL ACTIVO (Usando helper puro)
+  // 5. DETERMINACIÓN DEL VUELO ACTUAL ACTIVO
   // ---------------------------------------------------------------------------
   const currentFlight = resolveActiveFlight(
-    dayFlights,
+    dayFlights || [],
     selectedFlightId ?? lastExternalIdRef.current,
     pinnedFlightId,
     getCurrentTimeString()
   );
 
-  // Notificar al padre solo si firma (ID + updatedAt) cambia realmente
+  // Notificar al padre solo si la firma (ID + updatedAt) cambia realmente
   const currentFlightId = currentFlight?.id || null;
   const currentFlightUpdatedAt = currentFlight?.updatedAt || null;
 
@@ -107,7 +112,7 @@ export function useFlightItinerary(
   }, [currentFlight?.id, currentFlight?.totalPax]);
 
   // ---------------------------------------------------------------------------
-  // 5. PARSEO DEL NÚMERO DE VUELO
+  // 6. PARSEO DEL NÚMERO DE VUELO
   // ---------------------------------------------------------------------------
   const rawFlightNumber = (currentFlight?.flightNumber || '').replace(/\s+/g, '');
   const match = rawFlightNumber.match(/^([A-Za-z]+)(\d+)$/);
@@ -115,10 +120,9 @@ export function useFlightItinerary(
   const flightNumberOnly = match ? match[2] : rawFlightNumber;
 
   // ---------------------------------------------------------------------------
-  // 6. MANEJADORES DE PERSISTENCIA Y EVENTOS (DEXIE)
+  // 7. MANEJADORES DE PERSISTENCIA Y EVENTOS (DEXIE)
   // ---------------------------------------------------------------------------
 
-  // Actualizador polimórfico directo a Dexie DB usando helper unificado de payload
   const handleUpdateFlightField = async (fieldOrUpdates, value) => {
     if (!currentFlight?.id) return;
 
@@ -135,7 +139,6 @@ export function useFlightItinerary(
     }
   };
 
-  // Selección manual de vuelo y Pin
   const handleSelectFlight = (val) => {
     if (!val) {
       setSelectedFlightId(null);
@@ -158,7 +161,6 @@ export function useFlightItinerary(
     }
   };
 
-  // Modal de Tiempos
   const openTimeModal = (title, field, currentValue) => {
     setModalState({
       isOpen: true,
@@ -179,7 +181,6 @@ export function useFlightItinerary(
     closeTimeModal();
   };
 
-  // Guardar Pasajeros (PAX)
   const handleSavePax = async () => {
     const timeStamp = getCurrentTimeString();
     const updatedPax = parseInt(paxInput, 10) || 0;
@@ -192,7 +193,6 @@ export function useFlightItinerary(
     setIsPaxModalOpen(false);
   };
 
-  // Seleccionar Matrícula
   const handleSelectAircraft = async (selectedData) => {
     const tailNumber =
       typeof selectedData === 'object' && selectedData !== null
@@ -203,7 +203,6 @@ export function useFlightItinerary(
     setIsAircraftModalOpen(false);
   };
 
-  // Eliminación de Reportes (Soporta filtrado por ID o por índice)
   const openDeleteReportModal = (reportTarget) => {
     setDeleteReportModal({ isOpen: true, reportTarget });
   };
@@ -231,10 +230,9 @@ export function useFlightItinerary(
 
   return {
     // Datos y Selección
-    dayFlights,
-    allFlights: safeAllFlights || [],
+    dayFlights: dayFlights || [], // Garantiza que siempre sea un array
     currentFlight,
-    flight: currentFlight,
+    flight: currentFlight, // Alias por compatibilidad
     selectedFlightId: currentFlight?.id || null,
     pinnedFlightId,
     isLoading,
