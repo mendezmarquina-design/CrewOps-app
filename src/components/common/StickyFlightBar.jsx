@@ -3,9 +3,12 @@ import { Plane, DoorClosed, Bell } from 'lucide-react';
 
 function StickyFlightBar({ flight, onOpenAlarmModal }) {
   const hasFlight = Boolean(flight);
-  const cpTime = flight?.cierrePuerta || flight?.cierrePuertasTime || '--:--';
+  
+  // ✅ CAMBIO: Mostrar el cierre calculado (OTP), no el real/manual
+  // Prioridad: cierrePuertasTime (calculado por Gantt) sobre cierrePuerta (manual)
+  const cpTime = flight?.cierrePuertasTime || flight?.cierrePuerta || '--:--';
 
-  // ✅ FIX #2: Verificar toggle Y minutos configurados
+  // Detectar si la alarma está activa
   const [alarmActive, setAlarmActive] = useState(() => {
     const isEnabled = localStorage.getItem('doorCloseAlarm') === 'true';
     const hasMinutes = localStorage.getItem('alarmMinutesList');
@@ -42,7 +45,6 @@ function StickyFlightBar({ flight, onOpenAlarmModal }) {
         <div className="flex items-center gap-2">
           <Plane className="w-4 h-4 text-cyberCyan shrink-0" />
           <div className="flex flex-col leading-tight">
-            {/* ✅ FIX #1: Botón que abre el modal */}
             <button
               type="button"
               onClick={(e) => {
@@ -55,7 +57,6 @@ function StickyFlightBar({ flight, onOpenAlarmModal }) {
               title="Configurar alarmas de cierre de puertas"
             >
               {flight.flightNumber || 'LA---'}
-              {/* ✅ FIX #2: Campana solo si hay alarmas configuradas */}
               {alarmActive && (
                 <Bell className="w-3.5 h-3.5 text-cyberYellow animate-pulse" />
               )}

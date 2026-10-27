@@ -1,5 +1,5 @@
 // src/views/DocumentSearchView.jsx
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { db } from '../db/index';
 import BackButton from '../components/common/BackButton';
 import { useDocumentSearch } from '../hooks/useDocumentSearch';
@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 
 const CATEGORIES = ['Manuales', 'RTMs', 'RTAs', 'Comunicados', 'Boletines', 'Otros'];
+const PAGE_SIZE = 20; // Cargar de 20 en 20
 
 export default function DocumentSearchView({ onBackToFlights }) {
   const {
@@ -28,6 +29,11 @@ export default function DocumentSearchView({ onBackToFlights }) {
 
   const [uploadCategory, setUploadCategory] = useState('Manuales');
   const [showManager, setShowManager] = useState(false);
+  
+  // Estados para lazy loading
+  const [visibleDocs, setVisibleDocs] = useState({});
+  const observerRef = useRef(null);
+  const lastDocRef = useRef(null);
 
   // Modales
   const [pendingFile, setPendingFile] = useState(null);
@@ -39,6 +45,48 @@ export default function DocumentSearchView({ onBackToFlights }) {
   const [activePdfFile, setActivePdfFile] = useState(null);
   const [targetPage, setTargetPage] = useState(1);
   const [pdfTitle, setPdfTitle] = useState('');
+
+  // Inicializar docs visibles cuando cambian los documentos
+  useEffect(() => {
+    const initialVisible = {};
+    const docsByCategory = (documents || []).reduce((acc, doc) => {
+      const cat = doc.category || 'Otros';
+      if (!acc[cat]) acc[cat] = [];
+      acc[cat].push(doc);
+      return acc;
+    }, {});
+    
+    Object.keys(docsByCategory).forEach(cat => {
+      initialVisible[cat] = PAGE_SIZE;
+    });
+    setVisibleDocs(initialVisible);
+  }, [documents]);
+
+  // Intersection Observer para lazy loading
+  useEffect(() => {
+    if (observerRef.current) observerRef.current.disconnect();
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && lastDocRef.current) {
+          const category = lastDocRef.current.dataset.category;
+          setVisibleDocs(prev => ({
+            ...prev,
+            [category]: (prev[category] || PAGE_SIZE) + PAGE_SIZE
+          }));
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (lastDocRef.current) {
+      observerRef.current.observe(lastDocRef.current);
+    }
+
+    return () => {
+      if (observerRef.current) observerRef.current.disconnect();
+    };
+  }, [visibleDocs, documents]);
 
   const selectFileFallback = () => {
     return new Promise((resolve) => {
@@ -96,13 +144,11 @@ export default function DocumentSearchView({ onBackToFlights }) {
       uploadCategory,
       storePdfInDb
     });
-
     if (res.success) {
       alert(`¡Documento "${res.title}" indexado correctamente!`);
     } else {
       alert(`Error: ${res.error}`);
     }
-
     setPendingFile(null);
     setPendingFileHandle(null);
     setPendingDocId(null);
@@ -114,11 +160,10 @@ export default function DocumentSearchView({ onBackToFlights }) {
       if (!doc) return;
 
       let file = doc.pdfBlob;
-
       if (!file && doc.fileHandle) {
         try {
           const options = { mode: 'read' };
-          if ((await doc.fileHandle.queryPermission(options)) === 'granted' || 
+          if ((await doc.fileHandle.queryPermission(options)) === 'granted' ||
               (await doc.fileHandle.requestPermission(options)) === 'granted') {
             file = await doc.fileHandle.getFile();
           }
@@ -153,8 +198,8 @@ export default function DocumentSearchView({ onBackToFlights }) {
       <span>
         {parts.map((part, index) =>
           terms.some(t => t.toLowerCase() === part.toLowerCase()) ? (
-            <mark 
-              key={index} 
+            <mark
+              key={index}
               style={{ backgroundColor: 'var(--color-accentGreen)', color: 'var(--text-inverse-dark)' }}
               className="font-bold px-1 rounded"
             >
@@ -168,24 +213,32 @@ export default function DocumentSearchView({ onBackToFlights }) {
     );
   };
 
+  // Agrupar documentos por categoría
+  const docsByCategory = (documents || []).reduce((acc, doc) => {
+    const cat = doc.category || 'Otros';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(doc);
+    return acc;
+  }, {});
+
   return (
     <div className="w-full max-w-xl mx-auto p-3 sm:p-4 font-sans space-y-3" style={{ color: 'var(--text-main)' }}>
       {/* Botón Reutilizable Volver */}
       <BackButton onClick={onBackToFlights} />
 
       {/* Tarjeta Principal */}
-      <div 
+      <div
         className="rounded-3xl p-5 sm:p-6 shadow-xl border space-y-5"
-        style={{ 
-          backgroundColor: 'var(--color-bgCard)', 
-          borderColor: 'var(--border-color)' 
+        style={{
+          backgroundColor: 'var(--color-bgCard)',
+          borderColor: 'var(--border-color)'
         }}
       >
         {/* Banner de error */}
         {error && (
           <div className="p-3 border rounded-2xl text-xs flex justify-between items-center bg-rose-500/10 border-rose-500/30 text-rose-500">
             <span>{error}</span>
-            <button 
+            <button
               onClick={() => window.location.reload()}
               className="text-[10px] font-bold underline"
             >
@@ -197,10 +250,10 @@ export default function DocumentSearchView({ onBackToFlights }) {
         {/* Header con Título e Ícono */}
         <div className="flex items-start justify-between gap-3 border-b pb-4" style={{ borderColor: 'var(--border-color)' }}>
           <div className="flex items-center gap-3">
-            <div 
+            <div
               className="p-3 rounded-2xl border shrink-0"
-              style={{ 
-                backgroundColor: 'var(--accent-bg)', 
+              style={{
+                backgroundColor: 'var(--accent-bg)',
                 borderColor: 'var(--accent-border)',
                 color: 'var(--color-accentBlue)'
               }}
@@ -220,10 +273,10 @@ export default function DocumentSearchView({ onBackToFlights }) {
             type="button"
             onClick={() => setShowManager(!showManager)}
             className="font-bold px-3 py-1.5 rounded-xl text-[11px] transition-all cursor-pointer flex items-center gap-1.5 shrink-0 border"
-            style={{ 
-              backgroundColor: 'var(--color-bgInput)', 
+            style={{
+              backgroundColor: 'var(--color-bgInput)',
               borderColor: 'var(--border-color)',
-              color: 'var(--text-main)' 
+              color: 'var(--text-main)'
             }}
           >
             <Settings2 className="w-3.5 h-3.5" style={{ color: 'var(--text-sub)' }} />
@@ -232,11 +285,11 @@ export default function DocumentSearchView({ onBackToFlights }) {
         </div>
 
         {/* Sección de Carga / Indexación */}
-        <div 
+        <div
           className="p-3.5 rounded-2xl border flex flex-col gap-2.5"
-          style={{ 
-            backgroundColor: 'var(--color-bgInput)', 
-            borderColor: 'var(--border-color)' 
+          style={{
+            backgroundColor: 'var(--color-bgInput)',
+            borderColor: 'var(--border-color)'
           }}
         >
           <label className="text-xs font-bold px-0.5 tracking-wide" style={{ color: 'var(--text-main)' }}>
@@ -247,8 +300,8 @@ export default function DocumentSearchView({ onBackToFlights }) {
               value={uploadCategory}
               onChange={(e) => setUploadCategory(e.target.value)}
               className="border text-xs font-bold rounded-xl px-3 py-2 outline-none cursor-pointer flex-1 min-w-0"
-              style={{ 
-                backgroundColor: 'var(--color-bgCard)', 
+              style={{
+                backgroundColor: 'var(--color-bgCard)',
                 borderColor: 'var(--border-color)',
                 color: 'var(--text-main)'
               }}
@@ -262,9 +315,9 @@ export default function DocumentSearchView({ onBackToFlights }) {
               onClick={() => handleSelectAndIndex(null)}
               disabled={isProcessing}
               className="font-bold px-4 py-2 rounded-xl text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
-              style={{ 
-                backgroundColor: 'var(--color-accentGreen)', 
-                color: 'var(--text-inverse-dark)' 
+              style={{
+                backgroundColor: 'var(--color-accentGreen)',
+                color: 'var(--text-inverse-dark)'
               }}
             >
               {isProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
@@ -337,8 +390,8 @@ export default function DocumentSearchView({ onBackToFlights }) {
               value={query}
               onChange={(e) => handleSearch(e.target.value)}
               className="w-full border rounded-2xl pl-10 pr-4 py-2.5 text-xs focus:outline-none transition-all font-medium"
-              style={{ 
-                backgroundColor: 'var(--color-bgInput)', 
+              style={{
+                backgroundColor: 'var(--color-bgInput)',
                 borderColor: 'var(--border-color)',
                 color: 'var(--text-main)'
               }}
@@ -364,7 +417,6 @@ export default function DocumentSearchView({ onBackToFlights }) {
                 Actualizar lista
               </button>
             </div>
-
             {documents.length === 0 ? (
               <p className="text-xs text-center py-6" style={{ color: 'var(--text-sub)' }}>No hay documentos guardados en el sistema.</p>
             ) : (
@@ -373,14 +425,14 @@ export default function DocumentSearchView({ onBackToFlights }) {
                   <div
                     key={doc.id}
                     className="flex items-center justify-between gap-3 p-3 rounded-2xl border transition-all"
-                    style={{ 
-                      backgroundColor: 'var(--color-bgInput)', 
-                      borderColor: 'var(--border-color)' 
+                    style={{
+                      backgroundColor: 'var(--color-bgInput)',
+                      borderColor: 'var(--border-color)'
                     }}
                   >
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span 
+                        <span
                           className="text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase"
                           style={{ backgroundColor: 'var(--accent-bg)', color: 'var(--color-accentBlue)' }}
                         >
@@ -424,7 +476,7 @@ export default function DocumentSearchView({ onBackToFlights }) {
           </div>
         )}
 
-        {/* RESULTADOS DE BÚSQUEDA */}
+        {/* RESULTADOS DE BÚSQUEDA CON LAZY LOADING */}
         {!showManager && (
           <div className="space-y-3 pt-1">
             {query.trim().length > 0 && (
@@ -432,60 +484,71 @@ export default function DocumentSearchView({ onBackToFlights }) {
                 Coincidencias encontradas: <strong style={{ color: 'var(--text-principal)' }}>{results.length}</strong>
               </div>
             )}
-
-            {results.map((res) => (
-              <div 
-                key={res.id} 
-                className="border rounded-2xl p-4 space-y-2.5 transition-all shadow-sm"
-                style={{ 
-                  backgroundColor: 'var(--color-bgInput)', 
-                  borderColor: 'var(--border-color)' 
-                }}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span 
-                    className="text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase"
-                    style={{ backgroundColor: 'var(--accent-bg)', color: 'var(--color-accentYellow)' }}
-                  >
-                    {res.category}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenDocument(res.docId, res.pageNumber)}
-                    className="text-[11px] px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm shrink-0"
-                    style={{ 
-                      backgroundColor: 'var(--color-accentBlue)', 
-                      color: '#FFFFFF' 
-                    }}
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>Ver Pág. {res.pageNumber}</span>
-                  </button>
-                </div>
-                <div 
-                  className="text-xs p-3 rounded-xl border font-mono leading-relaxed break-words whitespace-pre-line"
-                  style={{ 
-                    backgroundColor: 'var(--color-bgCard)', 
-                    borderColor: 'var(--border-color)',
-                    color: 'var(--text-main)' 
+            {results.map((res, idx) => {
+              const isLast = idx === results.length - 1;
+              return (
+                <div
+                  key={res.id}
+                  ref={isLast ? lastDocRef : null}
+                  className="border rounded-2xl p-4 space-y-2.5 transition-all shadow-sm"
+                  style={{
+                    backgroundColor: 'var(--color-bgInput)',
+                    borderColor: 'var(--border-color)'
                   }}
                 >
-                  {renderHighlightedParagraph(res.content, query)}
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className="text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase"
+                      style={{ backgroundColor: 'var(--accent-bg)', color: 'var(--color-accentYellow)' }}
+                    >
+                      {res.category}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenDocument(res.docId, res.pageNumber)}
+                      className="text-[11px] px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm shrink-0"
+                      style={{
+                        backgroundColor: 'var(--color-accentBlue)',
+                        color: '#FFFFFF'
+                      }}
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Ver Pág. {res.pageNumber}</span>
+                    </button>
+                  </div>
+                  <div
+                    className="text-xs p-3 rounded-xl border font-mono leading-relaxed break-words whitespace-pre-line"
+                    style={{
+                      backgroundColor: 'var(--color-bgCard)',
+                      borderColor: 'var(--border-color)',
+                      color: 'var(--text-main)'
+                    }}
+                  >
+                    {renderHighlightedParagraph(res.content, query)}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--text-sub)' }}>
+                    <FileText className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">
+                      Fuente: <strong style={{ color: 'var(--text-main)' }}>{res.title}</strong> (Pág. {res.pageNumber})
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--text-sub)' }}>
-                  <FileText className="w-3.5 h-3.5 shrink-0" />
-                  <span className="truncate">
-                    Fuente: <strong style={{ color: 'var(--text-main)' }}>{res.title}</strong> (Pág. {res.pageNumber})
-                  </span>
-                </div>
+              );
+            })}
+
+            {/* Indicador de carga */}
+            {results.length > 0 && (
+              <div className="p-4 text-center">
+                <Loader2 className="w-5 h-5 animate-spin text-cyberCyan mx-auto" />
+                <p className="text-[10px] text-textSub mt-1">Cargando más resultados...</p>
               </div>
-            ))}
+            )}
 
             {query.trim().length > 0 && results.length === 0 && (
-              <div 
+              <div
                 className="p-8 text-center text-xs rounded-2xl border"
-                style={{ 
-                  backgroundColor: 'var(--color-bgInput)', 
+                style={{
+                  backgroundColor: 'var(--color-bgInput)',
                   borderColor: 'var(--border-color)',
                   color: 'var(--text-sub)'
                 }}
@@ -500,11 +563,11 @@ export default function DocumentSearchView({ onBackToFlights }) {
       {/* MODAL ALMACENAMIENTO */}
       {showStorageModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div 
+          <div
             className="rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-2xl border"
-            style={{ 
-              backgroundColor: 'var(--color-bgCard)', 
-              borderColor: 'var(--border-color)' 
+            style={{
+              backgroundColor: 'var(--color-bgCard)',
+              borderColor: 'var(--border-color)'
             }}
           >
             <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--border-color)' }}>
@@ -512,7 +575,7 @@ export default function DocumentSearchView({ onBackToFlights }) {
                 <Settings2 className="w-4 h-4" />
                 Modo de Almacenamiento
               </h3>
-              <button 
+              <button
                 type="button"
                 onClick={() => setShowStorageModal(false)}
                 className="cursor-pointer"
@@ -529,9 +592,9 @@ export default function DocumentSearchView({ onBackToFlights }) {
                 type="button"
                 onClick={() => handleConfirmSave(false)}
                 className="w-full border p-3 rounded-2xl flex items-start gap-3 text-left transition-all cursor-pointer"
-                style={{ 
-                  backgroundColor: 'var(--color-bgInput)', 
-                  borderColor: 'var(--border-color)' 
+                style={{
+                  backgroundColor: 'var(--color-bgInput)',
+                  borderColor: 'var(--border-color)'
                 }}
               >
                 <HardDrive className="w-5 h-5 shrink-0 mt-0.5" style={{ color: 'var(--color-accentBlue)' }} />
@@ -544,9 +607,9 @@ export default function DocumentSearchView({ onBackToFlights }) {
                 type="button"
                 onClick={() => handleConfirmSave(true)}
                 className="w-full border p-3 rounded-2xl flex items-start gap-3 text-left transition-all cursor-pointer"
-                style={{ 
-                  backgroundColor: 'var(--accent-bg)', 
-                  borderColor: 'var(--accent-border)' 
+                style={{
+                  backgroundColor: 'var(--accent-bg)',
+                  borderColor: 'var(--accent-border)'
                 }}
               >
                 <Database className="w-5 h-5 shrink-0 mt-0.5" style={{ color: 'var(--color-accentBlue)' }} />

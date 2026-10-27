@@ -2,10 +2,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import MiniSearch from 'minisearch';
 import { db } from '../db/index';
-import { extractTextFromPDF } from '../utils/pdfExtractor';
+import { extractTextFromPDF, createChunksFromPages } from '../utils/pdfExtractor';
 
 // ---------------------------------------------------------------------------
-// 1. SINÓSIMOS EXPANDIDOS (más robustos)
+// 1. SINÓNIMOS EXPANDIDOS
 // ---------------------------------------------------------------------------
 const SYNONYMS = {
   umnr: 'menor no acompañado',
@@ -23,34 +23,11 @@ const SYNONYMS = {
 };
 
 // ---------------------------------------------------------------------------
-// 2. UTILIDADES DE CHUNKING (fuera del hook para no recrearlas)
-// ---------------------------------------------------------------------------
-const chunkPageContent = (pageContent, docId, pageNum) => {
-  if (!pageContent || typeof pageContent !== 'string') return [];
-  
-  const rawParagraphs = pageContent.split(/\n\s*\n|\n(?=[A-Z0-9]\.\d|a\)|b\)|c\))/g);
-  
-  return rawParagraphs
-    .map((paragraph, idx) => {
-      const cleanText = paragraph.replace(/\s+/g, ' ').trim();
-      if (cleanText.length < 15) return null;
-      
-      return {
-        id: `${docId}-p${pageNum}-c${idx}`,
-        docId,
-        pageNumber: pageNum,
-        content: cleanText
-      };
-    })
-    .filter(Boolean);
-};
-
-// ---------------------------------------------------------------------------
-// 3. HOOK PRINCIPAL
+// 2. HOOK PRINCIPAL
 // ---------------------------------------------------------------------------
 export function useDocumentSearch() {
   // ---------------------------------------------------------------------------
-  // 3.1 ESTADOS AGRUPADOS
+  // 2.1 ESTADOS
   // ---------------------------------------------------------------------------
   const [documents, setDocuments] = useState([]);
   const [results, setResults] = useState([]);
@@ -58,9 +35,10 @@ export function useDocumentSearch() {
   const [selectedCategory, setSelectedCategory] = useState('TODAS');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState(null);
+  const [isIndexing, setIsIndexing] = useState(false);
 
   // ---------------------------------------------------------------------------
-  // 3.2 MINISEARCH INSTANCE (persiste entre renders)
+  // 2.2 MINISEARCH INSTANCE
   // ---------------------------------------------------------------------------
   const miniSearchRef = useRef(
     new MiniSearch({
@@ -74,31 +52,92 @@ export function useDocumentSearch() {
     })
   );
 
-  // Ref para cancelar procesamiento de PDF
   const processingAbortRef = useRef(null);
+  const indexedDocIdsRef = useRef(new Set()); // Track qué docs ya están indexados
 
   // ---------------------------------------------------------------------------
-  // 3.3 CARGA E INDEXACIÓN (optimizada)
+  // 2.3 CARGAR ÍNDICE PERSISTENTE DESDE INDEXEDDB
+  // ---------------------------------------------------------------------------
+  const loadPersistedIndex = useCallback(async () => {
+    try {
+      const savedIndex = await db.documentIndexes.get('main');
+      if (savedIndex && savedIndex.data) {
+        miniSearchRef.current = MiniSearch.loadJSON(savedIndex.data, {
+          fields: ['title', 'content'],
+          storeFields: ['title', 'category', 'docId', 'pageNumber', 'content'],
+          searchOptions: {
+            fuzzy: (term) => (term.length > 3 ? 0.2 : false),
+            prefix: true,
+            combineWith: 'AND'
+          }
+        });
+        indexedDocIdsRef.current = new Set(savedIndex.indexedDocIds || []);
+        console.log(`✅ Índice cargado desde IndexedDB (${indexedDocIdsRef.current.size} docs)`);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Error cargando índice persistente:', err);
+      return false;
+    }
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // 2.4 GUARDAR ÍNDICE EN INDEXEDDB
+  // ---------------------------------------------------------------------------
+  const savePersistedIndex = useCallback(async () => {
+    try {
+      const serializedIndex = miniSearchRef.current.toJSON();
+      await db.documentIndexes.put({
+        id: 'main',
+        data: serializedIndex,
+        indexedDocIds: Array.from(indexedDocIdsRef.current),
+        updatedAt: new Date().toISOString()
+      });
+      console.log('💾 Índice guardado en IndexedDB');
+    } catch (err) {
+      console.error('Error guardando índice:', err);
+    }
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // 2.5 CARGA E INDEXACIÓN INCREMENTAL
   // ---------------------------------------------------------------------------
   const loadAndIndexDocs = useCallback(async () => {
+    setIsIndexing(true);
+    setError(null);
+    
     try {
       if (!db.documents) return;
       
       const storedDocs = await db.documents.toArray();
       setDocuments(storedDocs);
-
+      
+      // Cargar índice persistente si existe
+      const hasPersistedIndex = await loadPersistedIndex();
+      
+      // Identificar docs nuevos o modificados
+      const docsToIndex = storedDocs.filter(doc => 
+        !indexedDocIdsRef.current.has(doc.id) || 
+        doc.updatedAt > (indexedDocIdsRef.current.get(doc.id) || '1970-01-01')
+      );
+      
+      console.log(`📊 ${docsToIndex.length} docs nuevos/modificados de ${storedDocs.length} total`);
+      
       const chunkIndexList = [];
       
-      storedDocs.forEach((doc) => {
+      // Indexar solo los docs nuevos/modificados
+      for (const doc of docsToIndex) {
         const pageList = doc.pages || doc.pagesData || [];
         
-        pageList.forEach((page, pageIdx) => {
-          const pageNum = page.pageNumber || page.page || (pageIdx + 1);
+        for (const page of pageList) {
+          const pageNum = page.pageNumber || page.page || (pageList.indexOf(page) + 1);
           const pageContent = page.content || page.text || (typeof page === 'string' ? page : '');
           
-          if (!pageContent) return;
+          if (!pageContent || pageContent.length < 50) continue;
           
-          const chunks = chunkPageContent(pageContent, doc.id, pageNum);
+          // Usar chunking inteligente
+          const chunks = createChunksFromPages([{ pageNumber: pageNum, content: pageContent }], doc.id);
           
           chunks.forEach((chunk) => {
             chunkIndexList.push({
@@ -107,26 +146,39 @@ export function useDocumentSearch() {
               category: doc.category || 'Otros'
             });
           });
-        });
-      });
-
-      miniSearchRef.current.removeAll();
+        }
+        
+        // Marcar como indexado
+        indexedDocIdsRef.current.add(doc.id);
+      }
       
-      if (chunkIndexList.length > 0) {
+      // Si no hay índice persistente, reconstruir todo
+      if (!hasPersistedIndex && chunkIndexList.length > 0) {
+        miniSearchRef.current.removeAll();
+        miniSearchRef.current.addAll(chunkIndexList);
+      } else if (chunkIndexList.length > 0) {
+        // Indexación incremental: solo agregar los nuevos chunks
         miniSearchRef.current.addAll(chunkIndexList);
       }
+      
+      // Guardar índice actualizado
+      await savePersistedIndex();
+      
+      console.log(`✅ Indexación completa: ${miniSearchRef.current.documentCount} documentos en índice`);
     } catch (err) {
       console.error('Error al cargar e indexar documentos:', err);
       setError('Error al indexar la base de datos local.');
+    } finally {
+      setIsIndexing(false);
     }
-  }, []);
+  }, [loadPersistedIndex, savePersistedIndex]);
 
   useEffect(() => {
     loadAndIndexDocs();
   }, [loadAndIndexDocs]);
 
   // ---------------------------------------------------------------------------
-  // 3.4 BÚSQUEDA (con debounce y sinónimos mejorados)
+  // 2.6 BÚSQUEDA CON DEBOUNCE Y SINÓNIMOS
   // ---------------------------------------------------------------------------
   const handleSearch = useCallback((text, catFilter = selectedCategory) => {
     setQuery(text);
@@ -139,7 +191,7 @@ export function useDocumentSearch() {
     const trimmedText = text.trim();
     const lower = trimmedText.toLowerCase();
     
-    // Expansión de sinónimos mejorada
+    // Expansión de sinónimos
     let expandedText = trimmedText;
     const synonymExpansion = SYNONYMS[lower];
     if (synonymExpansion) {
@@ -162,13 +214,11 @@ export function useDocumentSearch() {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
-    
     debounceTimerRef.current = setTimeout(() => {
       handleSearch(text);
-    }, 300); // 300ms de debounce
+    }, 300);
   }, [handleSearch]);
 
-  // Cleanup del debounce al desmontar
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
@@ -178,16 +228,15 @@ export function useDocumentSearch() {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // 3.5 PROCESAMIENTO DE PDF (con cancelación)
+  // 2.7 PROCESAMIENTO DE PDF
   // ---------------------------------------------------------------------------
-  const processAndSaveDocument = useCallback(async ({ 
-    file, 
-    fileHandle, 
-    existingDocId, 
-    uploadCategory, 
-    storePdfInDb 
+  const processAndSaveDocument = useCallback(async ({
+    file,
+    fileHandle,
+    existingDocId,
+    uploadCategory,
+    storePdfInDb
   }) => {
-    // Validación de archivo
     if (!file || file.type !== 'application/pdf') {
       setError('El archivo debe ser un PDF válido.');
       return { success: false, error: 'Archivo no válido' };
@@ -196,14 +245,12 @@ export function useDocumentSearch() {
     setIsProcessing(true);
     setError(null);
 
-    // Crear señal de cancelación
     const abortController = new AbortController();
     processingAbortRef.current = abortController;
 
     try {
       const extracted = await extractTextFromPDF(file, abortController.signal);
-      
-      // Verificar si fue cancelado
+
       if (abortController.signal.aborted) {
         return { success: false, error: 'Procesamiento cancelado' };
       }
@@ -221,19 +268,22 @@ export function useDocumentSearch() {
         totalPages,
         pages: pagesData,
         fileHandle: fileHandle || null,
-        pdfBlob: storePdfInDb ? file : null,
+        pdfBlob: storePdfInDb ? file : null, // ⚠️ Solo guardar si el usuario lo solicita
         isStoredLocally: !storePdfInDb,
         updatedAt: new Date().toISOString()
       };
 
       if (existingDocId) {
         await db.documents.update(existingDocId, docData);
+        // Remover del índice para re-indexar
+        indexedDocIdsRef.current.delete(existingDocId);
       } else {
         await db.documents.add(docData);
       }
 
+      // Re-indexar el documento actualizado
       await loadAndIndexDocs();
-      
+
       if (query) {
         handleSearch(query, selectedCategory);
       }
@@ -243,7 +293,6 @@ export function useDocumentSearch() {
       if (err.name === 'AbortError') {
         return { success: false, error: 'Procesamiento cancelado' };
       }
-      
       console.error('Error procesando PDF:', err);
       setError(err.message || 'Error al procesar el archivo PDF');
       return { success: false, error: err.message };
@@ -253,7 +302,6 @@ export function useDocumentSearch() {
     }
   }, [loadAndIndexDocs, query, selectedCategory, handleSearch]);
 
-  // Función para cancelar procesamiento
   const cancelProcessing = useCallback(() => {
     if (processingAbortRef.current) {
       processingAbortRef.current.abort();
@@ -261,11 +309,16 @@ export function useDocumentSearch() {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // 3.6 ELIMINACIÓN (memoizada)
+  // 2.8 ELIMINACIÓN CON ACTUALIZACIÓN DEL ÍNDICE
   // ---------------------------------------------------------------------------
   const deleteDocument = useCallback(async (docId) => {
     try {
       await db.documents.delete(docId);
+      
+      // Remover del índice
+      indexedDocIdsRef.current.delete(docId);
+      
+      // Re-indexar (rápido porque solo falta un doc)
       await loadAndIndexDocs();
       
       if (query.trim().length > 0) {
@@ -278,7 +331,7 @@ export function useDocumentSearch() {
   }, [loadAndIndexDocs, query, selectedCategory, handleSearch]);
 
   // ---------------------------------------------------------------------------
-  // 3.7 CATEGORÍAS DISPONIBLES (memoizadas)
+  // 2.9 CATEGORÍAS DISPONIBLES
   // ---------------------------------------------------------------------------
   const availableCategories = useMemo(() => {
     const categories = new Set(documents.map((doc) => doc.category || 'Otros'));
@@ -286,7 +339,7 @@ export function useDocumentSearch() {
   }, [documents]);
 
   // ---------------------------------------------------------------------------
-  // 3.8 RETURN
+  // 2.10 RETURN
   // ---------------------------------------------------------------------------
   return {
     documents,
@@ -294,16 +347,15 @@ export function useDocumentSearch() {
     query,
     selectedCategory,
     isProcessing,
+    isIndexing,
     error,
     availableCategories,
-    
-    // Actions
     setSelectedCategory,
     handleSearch,
-    handleSearchDebounced, // Nueva: para búsqueda en tiempo real
+    handleSearchDebounced,
     processAndSaveDocument,
     deleteDocument,
-    cancelProcessing, // Nueva: para cancelar procesamiento
+    cancelProcessing,
     loadAndIndexDocs
   };
 }

@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import BackButton from '../components/common/BackButton';
 import PdfViewerModal from '../components/modals/PdfViewerModal';
 import {
-  BookOpen, FileText, Search, Filter, Eye, Calendar,
-  ChevronDown, ChevronUp, FolderOpen
+  BookOpen, FileText, Search, Eye, Calendar,
+  ChevronDown, ChevronUp, FolderOpen, Loader2
 } from 'lucide-react';
 
 const CATEGORIES = ['Manuales', 'RTMs', 'RTAs', 'Comunicados', 'Boletines', 'Otros'];
+const PAGE_SIZE = 20; // Cargar de 20 en 20
 
 const CATEGORY_COLORS = {
   'Manuales': 'bg-blue-500/10 text-blue-400 border-blue-500/30',
@@ -23,16 +24,22 @@ export default function DocumentsLibraryView({ onBack }) {
   const [selectedCategory, setSelectedCategory] = useState('TODAS');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedCategory, setExpandedCategory] = useState(null);
-  
-  // Visor PDF
+  const [visibleDocs, setVisibleDocs] = useState({}); // Track docs visibles por categoría
   const [activePdf, setActivePdf] = useState(null);
   const [activePage, setActivePage] = useState(1);
   const [activeTitle, setActiveTitle] = useState('');
+  
+  const observerRef = useRef(null);
+  const lastDocRef = useRef(null);
 
-  // Consulta reactiva de documentos
+  // Consulta paginada de documentos
   const documents = useLiveQuery(async () => {
-    const docs = await db.documents.toArray();
-    return docs.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+    const docs = await db.documents
+      .orderBy('updatedAt')
+      .reverse()
+      .limit(100) // Límite máximo para evitar sobrecarga
+      .toArray();
+    return docs;
   }, []);
 
   // Filtrar por categoría y búsqueda
@@ -51,6 +58,41 @@ export default function DocumentsLibraryView({ onBack }) {
     acc[cat].push(doc);
     return acc;
   }, {});
+
+  // Inicializar docs visibles
+  useEffect(() => {
+    const initialVisible = {};
+    Object.keys(docsByCategory).forEach(cat => {
+      initialVisible[cat] = PAGE_SIZE;
+    });
+    setVisibleDocs(initialVisible);
+  }, [docsByCategory]);
+
+  // Intersection Observer para lazy loading
+  useEffect(() => {
+    if (observerRef.current) observerRef.current.disconnect();
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && lastDocRef.current) {
+          const category = lastDocRef.current.dataset.category;
+          setVisibleDocs(prev => ({
+            ...prev,
+            [category]: (prev[category] || PAGE_SIZE) + PAGE_SIZE
+          }));
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (lastDocRef.current) {
+      observerRef.current.observe(lastDocRef.current);
+    }
+
+    return () => {
+      if (observerRef.current) observerRef.current.disconnect();
+    };
+  }, [visibleDocs, docsByCategory]);
 
   const handleOpenDocument = async (doc) => {
     try {
@@ -147,7 +189,7 @@ export default function DocumentsLibraryView({ onBack }) {
         </div>
       </div>
 
-      {/* LISTA DE DOCUMENTOS AGRUPADA */}
+      {/* LISTA DE DOCUMENTOS AGRUPADA CON LAZY LOADING */}
       <div className="space-y-2">
         {Object.keys(docsByCategory).length === 0 ? (
           <div className="bg-bgCard border border-borderCard rounded-2xl p-8 text-center">
@@ -162,10 +204,13 @@ export default function DocumentsLibraryView({ onBack }) {
           Object.entries(docsByCategory).map(([category, docs]) => {
             const isExpanded = expandedCategory === category || selectedCategory !== 'TODAS';
             const colorClass = CATEGORY_COLORS[category] || CATEGORY_COLORS['Otros'];
+            const visibleCount = visibleDocs[category] || PAGE_SIZE;
+            const visibleDocsList = docs.slice(0, visibleCount);
+            const hasMore = visibleCount < docs.length;
 
             return (
               <div key={category} className="bg-bgCard border border-borderCard rounded-2xl overflow-hidden shadow-sm">
-                {/* Header de categoría (clickeable para expandir/colapsar) */}
+                {/* Header de categoría */}
                 <button
                   type="button"
                   onClick={() => setExpandedCategory(isExpanded ? null : category)}
@@ -186,38 +231,51 @@ export default function DocumentsLibraryView({ onBack }) {
                   )}
                 </button>
 
-                {/* Lista de documentos */}
+                {/* Lista de documentos con lazy loading */}
                 {isExpanded && (
                   <div className="border-t border-borderCard/50 divide-y divide-borderCard/30">
-                    {docs.map(doc => (
-                      <button
-                        key={doc.id}
-                        type="button"
-                        onClick={() => handleOpenDocument(doc)}
-                        className="w-full flex items-center gap-3 p-3 hover:bg-bgInput/50 transition-colors text-left group"
-                      >
-                        <div className="p-2 rounded-lg bg-cyberCyan/10 border border-cyberCyan/20 shrink-0 group-hover:bg-cyberCyan/20 transition-colors">
-                          <FileText className="w-4 h-4 text-cyberCyan" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-textMain truncate group-hover:text-cyberCyan transition-colors">
-                            {doc.title}
-                          </p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[10px] text-textSub flex items-center gap-1">
-                              <Calendar className="w-2.5 h-2.5" />
-                              {formatDate(doc.updatedAt)}
-                            </span>
-                            <span className="text-[10px] text-textSub">
-                              · {doc.totalPages || '?'} págs
-                            </span>
+                    {visibleDocsList.map((doc, idx) => {
+                      const isLast = hasMore && idx === visibleDocsList.length - 1;
+                      return (
+                        <button
+                          key={doc.id}
+                          ref={isLast ? lastDocRef : null}
+                          data-category={category}
+                          type="button"
+                          onClick={() => handleOpenDocument(doc)}
+                          className="w-full flex items-center gap-3 p-3 hover:bg-bgInput/50 transition-colors text-left group"
+                        >
+                          <div className="p-2 rounded-lg bg-cyberCyan/10 border border-cyberCyan/20 shrink-0 group-hover:bg-cyberCyan/20 transition-colors">
+                            <FileText className="w-4 h-4 text-cyberCyan" />
                           </div>
-                        </div>
-                        <div className="shrink-0 p-2 rounded-lg bg-cyberCyan/10 border border-cyberCyan/20 group-hover:bg-cyberCyan group-hover:text-bgApp transition-all">
-                          <Eye className="w-4 h-4 text-cyberCyan group-hover:text-bgApp" />
-                        </div>
-                      </button>
-                    ))}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-textMain truncate group-hover:text-cyberCyan transition-colors">
+                              {doc.title}
+                            </p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] text-textSub flex items-center gap-1">
+                                <Calendar className="w-2.5 h-2.5" />
+                                {formatDate(doc.updatedAt)}
+                              </span>
+                              <span className="text-[10px] text-textSub">
+                                · {doc.totalPages || '?'} págs
+                              </span>
+                            </div>
+                          </div>
+                          <div className="shrink-0 p-2 rounded-lg bg-cyberCyan/10 border border-cyberCyan/20 group-hover:bg-cyberCyan group-hover:text-bgApp transition-all">
+                            <Eye className="w-4 h-4 text-cyberCyan group-hover:text-bgApp" />
+                          </div>
+                        </button>
+                      );
+                    })}
+                    
+                    {/* Indicador de carga */}
+                    {hasMore && (
+                      <div className="p-4 text-center">
+                        <Loader2 className="w-5 h-5 animate-spin text-cyberCyan mx-auto" />
+                        <p className="text-[10px] text-textSub mt-1">Cargando más documentos...</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

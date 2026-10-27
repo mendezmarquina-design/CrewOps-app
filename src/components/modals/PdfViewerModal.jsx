@@ -1,18 +1,16 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import { X, ChevronLeft, ChevronRight, Loader2, FileText, ZoomIn, ZoomOut, Maximize2, RotateCw, Target } from 'lucide-react';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { X, ChevronLeft, ChevronRight, Loader2, FileText, ZoomIn, ZoomOut, RotateCw, Target } from 'lucide-react';
 
-// 🛑 DESACTIVAR WORKERS
 pdfjsLib.GlobalWorkerOptions.workerSrc = '';
 
 export default function PdfViewerModal({ pdfFile, initialPage, title, onClose }) {
   const canvasRef = useRef(null);
-  const scrollContainerRef = useRef(null);
   const [currentPage, setCurrentPage] = useState(initialPage || 1);
   const [totalPages, setTotalPages] = useState(0);
   const [pdfDoc, setPdfDoc] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [scale, setScale] = useState(1);
   const [isLandscape, setIsLandscape] = useState(false);
 
   // Cargar PDF
@@ -40,7 +38,7 @@ export default function PdfViewerModal({ pdfFile, initialPage, title, onClose })
     return () => { active = false; };
   }, [pdfFile]);
 
-  // Renderizar página con zoom aplicado al viewport de PDF.js
+  // Renderizar página
   useEffect(() => {
     if (!pdfDoc || !canvasRef.current) return;
     let renderTask = null;
@@ -52,42 +50,19 @@ export default function PdfViewerModal({ pdfFile, initialPage, title, onClose })
         const context = canvas.getContext('2d');
         const unscaledViewport = page.getViewport({ scale: 1.0 });
 
-        // Calcular escala base según orientación
-        const container = scrollContainerRef.current;
-        const containerWidth = container ? container.clientWidth - 32 : 800;
-        const containerHeight = container ? container.clientHeight - 32 : 600;
+        // Escala base según orientación
+        const containerWidth = window.innerWidth - 64;
+        const containerHeight = window.innerHeight - 120;
+        const baseScale = isLandscape
+          ? containerHeight / unscaledViewport.height
+          : containerWidth / unscaledViewport.width;
 
-        let baseScale;
-        if (isLandscape) {
-          // Horizontal: ajustar al alto del contenedor
-          baseScale = containerHeight / unscaledViewport.height;
-        } else {
-          // Vertical: ajustar al ancho del contenedor
-          baseScale = containerWidth / unscaledViewport.width;
-        }
-
-        // Aplicar zoom del usuario sobre la escala base
-        const finalScale = baseScale * scale;
-        const viewport = page.getViewport({ scale: Math.max(finalScale, 0.5) });
-
+        const viewport = page.getViewport({ scale: Math.max(baseScale, 1) });
         canvas.height = viewport.height;
         canvas.width = viewport.width;
 
-        const renderContext = {
-          canvasContext: context,
-          viewport: viewport
-        };
-
-        renderTask = page.render(renderContext);
+        renderTask = page.render({ canvasContext: context, viewport });
         await renderTask.promise;
-
-        // ✨ NUEVO: Centrar la vista después de renderizar
-        if (scale > 1 && container) {
-          const scrollLeft = (canvas.width - container.clientWidth) / 2;
-          const scrollTop = (canvas.height - container.clientHeight) / 2;
-          container.scrollLeft = Math.max(0, scrollLeft);
-          container.scrollTop = Math.max(0, scrollTop);
-        }
       } catch (err) {
         if (err.name !== 'RenderingCancelledException') {
           console.error('Error al renderizar página:', err);
@@ -96,48 +71,23 @@ export default function PdfViewerModal({ pdfFile, initialPage, title, onClose })
     };
 
     renderPage();
-    return () => {
-      if (renderTask) renderTask.cancel();
-    };
-  }, [pdfDoc, currentPage, scale, isLandscape]);
+    return () => { if (renderTask) renderTask.cancel(); };
+  }, [pdfDoc, currentPage, isLandscape]);
 
-  // Resetear zoom al cambiar de página
-  useEffect(() => {
-    setScale(1);
-  }, [currentPage]);
+  useEffect(() => { setCurrentPage(initialPage || 1); }, [initialPage]);
 
-  // Handlers de zoom
-  const handleZoomIn = () => setScale(s => Math.min(3, +(s + 0.25).toFixed(2)));
-  const handleZoomOut = () => setScale(s => Math.max(0.5, +(s - 0.25).toFixed(2)));
-  const handleResetZoom = () => setScale(1);
   const handleToggleOrientation = () => setIsLandscape(l => !l);
-
-  // ✨ NUEVO: Centrar la vista
-  const handleCenterView = useCallback(() => {
-    const container = scrollContainerRef.current;
-    const canvas = canvasRef.current;
-    if (container && canvas) {
-      container.scrollTo({
-        left: (canvas.width - container.clientWidth) / 2,
-        top: (canvas.height - container.clientHeight) / 2,
-        behavior: 'smooth'
-      });
-    }
-  }, []);
 
   // Atajos de teclado
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'ArrowLeft' && currentPage > 1) setCurrentPage(p => p - 1);
       if (e.key === 'ArrowRight' && currentPage < totalPages) setCurrentPage(p => p + 1);
-      if (e.key === '+' || e.key === '=') handleZoomIn();
-      if (e.key === '-') handleZoomOut();
-      if (e.key === '0') handleResetZoom();
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentPage, totalPages, scale]);
+  }, [currentPage, totalPages, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col animate-fadeIn">
@@ -151,7 +101,7 @@ export default function PdfViewerModal({ pdfFile, initialPage, title, onClose })
         </div>
 
         <div className="flex items-center gap-1.5">
-          {/* Navegación de páginas */}
+          {/* Navegación */}
           <div className="flex items-center gap-1.5 bg-bgCard border border-borderCard/80 rounded-xl px-2 py-1">
             <button
               type="button"
@@ -174,54 +124,7 @@ export default function PdfViewerModal({ pdfFile, initialPage, title, onClose })
             </button>
           </div>
 
-          {/* Controles de zoom */}
-          <div className="flex items-center gap-1 bg-bgCard border border-borderCard/80 rounded-xl px-2 py-1">
-            <button
-              type="button"
-              onClick={handleZoomOut}
-              disabled={scale <= 0.5}
-              className="p-1 hover:bg-bgInput rounded-lg text-textMain disabled:opacity-30 cursor-pointer"
-              title="Reducir zoom (-)"
-            >
-              <ZoomOut className="w-4 h-4" />
-            </button>
-            <span className="text-[10px] font-mono font-bold text-cyberCyan px-1 min-w-[40px] text-center">
-              {Math.round(scale * 100)}%
-            </span>
-            <button
-              type="button"
-              onClick={handleZoomIn}
-              disabled={scale >= 3}
-              className="p-1 hover:bg-bgInput rounded-lg text-textMain disabled:opacity-30 cursor-pointer"
-              title="Aumentar zoom (+)"
-            >
-              <ZoomIn className="w-4 h-4" />
-            </button>
-            {scale !== 1 && (
-              <button
-                type="button"
-                onClick={handleResetZoom}
-                className="p-1 hover:bg-bgInput rounded-lg text-textMain cursor-pointer"
-                title="Resetear zoom (0)"
-              >
-                <Maximize2 className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          {/* ✨ NUEVO: Botón centrar (solo visible con zoom) */}
-          {scale > 1 && (
-            <button
-              type="button"
-              onClick={handleCenterView}
-              className="p-1.5 bg-bgCard border border-borderCard/80 rounded-xl hover:bg-bgInput text-cyberYellow cursor-pointer"
-              title="Centrar vista"
-            >
-              <Target className="w-4 h-4" />
-            </button>
-          )}
-
-          {/* ✨ NUEVO: Botón rotar orientación */}
+          {/* Orientación */}
           <button
             type="button"
             onClick={handleToggleOrientation}
@@ -245,30 +148,75 @@ export default function PdfViewerModal({ pdfFile, initialPage, title, onClose })
         </button>
       </div>
 
-      {/* ✨ ÁREA DE VISUALIZACIÓN CON SCROLL NATIVO */}
-      <div
-        ref={scrollContainerRef}
-        className="flex-1 bg-zinc-950 overflow-auto p-4 flex justify-center items-start"
-        style={{ touchAction: 'pan-x pan-y' }}
-      >
+      {/* ✅ ÁREA CON REACT-ZOOM-PAN-PINCH */}
+      <div className="flex-1 bg-zinc-950 overflow-hidden relative">
         {loading ? (
           <div className="flex flex-col items-center justify-center h-full space-y-2 text-cyberCyan">
             <Loader2 className="w-8 h-8 animate-spin" />
             <span className="text-xs font-mono">Cargando página {initialPage}...</span>
           </div>
         ) : (
-          <div className="shadow-2xl rounded-lg overflow-hidden border border-borderCard/40 my-auto">
-            <canvas ref={canvasRef} className="block" />
+          <TransformWrapper
+            initialScale={1}
+            minScale={0.5}
+            maxScale={4}
+            centerOnInit={true}
+            limitToBounds={false}
+            wheel={{ step: 0.1 }}
+            pinch={{ step: 5 }}
+            doubleClick={{ disabled: false, step: 0.7 }}
+          >
+            {({ zoomIn, zoomOut, resetTransform }) => (
+              <>
+                {/* Controles flotantes de zoom */}
+                <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => zoomIn()}
+                    className="p-2 bg-bgCard border border-borderCard rounded-xl hover:bg-bgInput text-textMain cursor-pointer shadow-lg"
+                    title="Acercar"
+                  >
+                    <ZoomIn className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => zoomOut()}
+                    className="p-2 bg-bgCard border border-borderCard rounded-xl hover:bg-bgInput text-textMain cursor-pointer shadow-lg"
+                    title="Alejar"
+                  >
+                    <ZoomOut className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => resetTransform()}
+                    className="p-2 bg-bgCard border border-borderCard rounded-xl hover:bg-bgInput text-cyberYellow cursor-pointer shadow-lg"
+                    title="Centrar vista"
+                  >
+                    <Target className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Canvas con gestos */}
+                <TransformComponent
+                  wrapperClass="!w-full !h-full"
+                  contentClass="!w-full !h-full flex items-center justify-center"
+                >
+                  <div className="shadow-2xl rounded-lg overflow-hidden border border-borderCard/40">
+                    <canvas ref={canvasRef} className="block" />
+                  </div>
+                </TransformComponent>
+              </>
+            )}
+          </TransformWrapper>
+        )}
+
+        {/* Indicador de gestos */}
+        {!loading && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-sm text-white text-[10px] font-mono px-3 py-1.5 rounded-full opacity-70 pointer-events-none">
+            Pellizca para zoom · Arrastra para mover · Rueda para zoom
           </div>
         )}
       </div>
-
-      {/* Indicador de orientación */}
-      {isLandscape && !loading && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-sm text-white text-[10px] font-mono px-3 py-1.5 rounded-full opacity-70 pointer-events-none">
-          📐 Vista horizontal · Scroll para desplazar
-        </div>
-      )}
     </div>
   );
 }

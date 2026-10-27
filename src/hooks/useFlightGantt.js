@@ -3,12 +3,10 @@ import { db } from '../db';
 import { GANTT_TEMPLATES, calculateMilestoneTimes } from '../utils/ganttTemplates';
 import { resolveGanttTemplateWithReason } from '../utils/ganttMatcher';
 import { addMinutesToTime, calculateMinutesDifference, createFlightUpdatePayload } from '../utils/flightUtils';
-import { determineFlightType } from '../utils/airports'; // ← NUEVO
+import { determineFlightType } from '../utils/airports';
 
-// Opciones disponibles de TAT
 const TAT_OPTIONS = [30, 35, 40, 45, 50, 60];
 
-// Función para encontrar el TAT más cercano e inferior al ground time
 const findClosestLowerTAT = (groundTimeMinutes) => {
   if (!groundTimeMinutes || groundTimeMinutes <= 0) return 30;
   const validTATs = TAT_OPTIONS.filter(tat => tat <= groundTimeMinutes);
@@ -90,9 +88,7 @@ export function useFlightGantt(flight, onUpdateFlight) {
   // 5. TIPO DE VUELO AUTOMÁTICO (DOM/INT)
   // ---------------------------------------------------------------------------
   const selectedAircraft = flight?.aircraftType || 'A320';
-  
-  // ✅ NUEVO: Determinar automáticamente el tipo de vuelo
-  // Si el vuelo ya tiene un flightType definido manualmente, respetarlo
+
   const selectedFlightType = useMemo(() => {
     if (flight?.flightType) return flight.flightType;
     return determineFlightType(selectedOrigin, selectedDestination);
@@ -245,6 +241,8 @@ export function useFlightGantt(flight, onUpdateFlight) {
     const templateOriginToUse = GANTT_TEMPLATES.find((t) => t.id === tmplOriginId) || currentOriginTemplate;
     const timesOrigin = calculateMilestoneTimes(displayEtd, templateOriginToUse.milestones);
     const cpTime = timesOrigin.find((m) => m.key === 'cierre_puertas')?.calculatedTime || addMinutesToTime(displayEtd, -8);
+
+    // ✅ CORREGIDO: Solo escribir cierrePuertasTime (calculado), NUNCA cierrePuerta (manual)
     const payload = createFlightUpdatePayload({
       ...flight,
       route: selectedRoute,
@@ -256,12 +254,13 @@ export function useFlightGantt(flight, onUpdateFlight) {
       ganttTemplateOriginId: tmplOriginId,
       ganttTemplateDestId: tmplDestId,
       tat: updatedFields.tat ?? selectedTAT,
-      cierrePuertasTime: cpTime,
-      cierrePuerta: cpTime,
+      cierrePuertasTime: cpTime, // ✅ Solo el calculado va aquí
+      // ❌ ELIMINADO: cierrePuerta: cpTime  (esto sobrescribía el manual)
       etd: displayEtd,
       eta: displayEta,
       ...updatedFields
     });
+
     if (flight?.id) {
       try {
         await db.flights.update(flight.id, payload);
