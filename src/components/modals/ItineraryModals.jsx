@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
-import { Plane, X, Search, AlertTriangle } from 'lucide-react';
+import { Plane, X, Search, AlertTriangle, Info } from 'lucide-react';
 import TimePickerModal from '../modals/TimePickerModal';
+
 export { TimePickerModal };
 
 export const TailNumberModal = memo(function TailNumberModal({
@@ -12,6 +13,9 @@ export const TailNumberModal = memo(function TailNumberModal({
   onSelectTail
 }) {
   if (!isOpen) return null;
+
+  // ✅ Fallback si no hay matrículas
+  const hasAircrafts = aircrafts && aircrafts.length > 0;
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-xs z-50 flex items-center justify-center p-4">
@@ -29,6 +33,7 @@ export const TailNumberModal = memo(function TailNumberModal({
             <X className="w-4 h-4" />
           </button>
         </div>
+
         <div className="bg-bgInput border border-borderCard rounded-xl px-3 h-9 flex items-center gap-2">
           <Search className="w-3.5 h-3.5 text-cyberCyan shrink-0" />
           <input
@@ -40,36 +45,63 @@ export const TailNumberModal = memo(function TailNumberModal({
             autoFocus
           />
         </div>
+
         <div className="space-y-1.5 max-h-[250px] overflow-y-auto scrollbar-none pr-1">
-          {aircrafts.map((ac, idx) => (
-            <div
-              key={ac.id || ac.tailNumber || idx}
-              onClick={() => onSelectTail(ac.tailNumber)}
-              className="bg-bgInput/40 border border-borderCard rounded-xl p-2.5 cursor-pointer hover:border-cyberCyan/50 hover:bg-bgCardHeader transition-all space-y-0.5"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-cyberCyan font-extrabold text-xs font-mono">
-                  {ac.tailNumber}
-                </span>
-                {ac.model && (
-                  <span className="bg-cyberCyan/10 text-cyberCyan border border-cyberCyan/20 text-[9px] font-bold px-1.5 py-0.5 rounded-md font-mono">
-                    {ac.model}
+          {hasAircrafts ? (
+            aircrafts.map((ac, idx) => (
+              <div
+                key={ac.id || ac.tailNumber || idx}
+                onClick={() => onSelectTail(ac.tailNumber)}
+                className="bg-bgInput/40 border border-borderCard rounded-xl p-2.5 cursor-pointer hover:border-cyberCyan/50 hover:bg-bgCardHeader transition-all space-y-0.5"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-cyberCyan font-extrabold text-xs font-mono">
+                    {ac.tailNumber}
                   </span>
+                  {ac.model && (
+                    <span className="bg-cyberCyan/10 text-cyberCyan border border-cyberCyan/20 text-[9px] font-bold px-1.5 py-0.5 rounded-md font-mono">
+                      {ac.model}
+                    </span>
+                  )}
+                </div>
+                {ac.notes && (
+                  <p className="text-[10px] text-textSub italic flex items-center gap-1">
+                    <Info className="w-2.5 h-2.5 shrink-0" />
+                    {ac.notes}
+                  </p>
                 )}
               </div>
-              {ac.notes && (
-                <p className="text-[10px] text-textSub italic flex items-center gap-1">
-                  <span className="inline-block w-1 h-1 rounded-full bg-cyberCyan"></span>
-                  {ac.notes}
-                </p>
-              )}
+            ))
+          ) : (
+            <div className="text-center py-6 space-y-2">
+              <div className="w-10 h-10 mx-auto rounded-full bg-bgInput border border-borderCard flex items-center justify-center">
+                <Plane className="w-5 h-5 text-textSub" />
+              </div>
+              <p className="text-xs text-textSub italic">
+                {searchQuery
+                  ? `No se encontraron matrículas para "${searchQuery}"`
+                  : 'No hay matrículas registradas en el sistema'}
+              </p>
+              <p className="text-[10px] text-textSub/60">
+                Las matrículas se cargan automáticamente al iniciar la app.
+              </p>
             </div>
-          ))}
-          {aircrafts.length === 0 && (
-            <p className="text-center text-xs text-textSub italic py-3">
-              No se encontraron matrículas.
-            </p>
           )}
+        </div>
+
+        <div className="pt-2 border-t border-borderCard flex items-center justify-between text-[10px] text-textSub">
+          <span>
+            {hasAircrafts 
+              ? `${aircrafts.length} matrícula${aircrafts.length !== 1 ? 's' : ''}`
+              : 'Sin matrículas'}
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-cyberCyan hover:text-cyberCyan/80 font-bold uppercase tracking-wider"
+          >
+            Cerrar
+          </button>
         </div>
       </div>
     </div>

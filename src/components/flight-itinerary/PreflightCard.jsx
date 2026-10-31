@@ -3,8 +3,43 @@ import { Plane, LogOut, Users, UserCheck, ChevronDown, ChevronUp, Clock, AlertTr
 import TimeTile from '../common/TimeTile';
 import TimePickerModal from '../modals/TimePickerModal';
 import { useTimePicker } from '../../hooks/useTimePicker';
+import { GANTT_TEMPLATES, calculateMilestoneTimes } from '../../data/ganttTemplates';
 
-// ✅ Array de campos fuera del componente (no se recrea)
+// ✅ Helper: obtener tiempos de referencia del template Gantt
+const getPreflightReferenceTimes = (flightData) => {
+  if (!flightData) return {};
+
+  // Buscar template por ID de origen, luego por ID general, luego por tipo de avión
+  const template =
+    GANTT_TEMPLATES.find((t) => t.id === flightData?.ganttTemplateOriginId) ||
+    GANTT_TEMPLATES.find((t) => t.id === flightData?.ganttTemplateId) ||
+    GANTT_TEMPLATES.find((t) => t.aircraftType?.toUpperCase() === flightData?.aircraftType?.toUpperCase()) ||
+    GANTT_TEMPLATES[0];
+
+  const etd = flightData?.etd || flightData?.std || flightData?.departureTime || '--:--';
+  const milestones = calculateMilestoneTimes(etd, template?.milestones || []);
+
+  const findHitoByKey = (keys) => {
+    for (const key of keys) {
+      const hito = milestones.find((m) => m.key === key);
+      if (hito) return hito;
+    }
+    return null;
+  };
+
+  const hitoArribo = findHitoByKey(['llegada_avion', 'llegada_del_avion', 'arribo_avion']);
+  const hitoBajaTrip = findHitoByKey(['baja_tripulacion_anterior', 'baja_trip_anterior', 'desembarque_tripulacion_anterior']);
+  const hitoLlegadaTrip = findHitoByKey(['llegada_tripulacion', 'llegada_de_tripulacion']);
+  const hitoInicioEmbTrip = findHitoByKey(['inicio_embarque_tripulacion', 'inicio_emb_trip', 'embarque_tripulacion']);
+
+  return {
+    arriboAvion: hitoArribo?.calculatedTime,
+    bajaTripAnterior: hitoBajaTrip?.calculatedTime,
+    llegadaTripulacion: hitoLlegadaTrip?.calculatedTime,
+    inicioEmbTrip: hitoInicioEmbTrip?.calculatedTime
+  };
+};
+
 const FIELDS = [
   { key: 'arriboAvion', label: 'Arribo Avión', icon: Plane },
   { key: 'bajaTripAnterior', label: 'Baja Trip. Anterior', icon: LogOut },
@@ -16,15 +51,16 @@ function PreflightCard({ flightData, onUpdateFlight, defaultOpen = false }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const { modalConfig, handleFieldClick, closeModal, saveModalTime } = useTimePicker(onUpdateFlight);
 
-  // ✅ Handler estable para el click de tiles
   const handleTileClick = useCallback((key, label, value) => {
     handleFieldClick(key, label, value);
   }, [handleFieldClick]);
 
-  // ✅ Memoizado: verificación de arribo de avión
   const hasArriboAvion = useMemo(() => {
     return Boolean(flightData?.arriboAvion && flightData?.arriboAvion !== '--:--');
   }, [flightData?.arriboAvion]);
+
+  // ✅ Calcular tiempos de referencia del template Gantt
+  const referenceTimes = useMemo(() => getPreflightReferenceTimes(flightData), [flightData]);
 
   return (
     <>
@@ -56,7 +92,6 @@ function PreflightCard({ flightData, onUpdateFlight, defaultOpen = false }) {
             </button>
           </div>
         </div>
-
         {isOpen && (
           <div className="grid grid-cols-2 gap-2 pt-0.5 border-t border-borderCard/60 pt-3">
             {FIELDS.map(({ key, label, icon }) => (
@@ -65,13 +100,13 @@ function PreflightCard({ flightData, onUpdateFlight, defaultOpen = false }) {
                 label={label}
                 value={flightData?.[key]}
                 icon={icon}
+                referenceTime={referenceTimes[key]}
                 onClick={() => handleTileClick(key, label, flightData?.[key])}
               />
             ))}
           </div>
         )}
       </div>
-
       <TimePickerModal
         isOpen={modalConfig.isOpen}
         title={modalConfig.title}
@@ -83,5 +118,4 @@ function PreflightCard({ flightData, onUpdateFlight, defaultOpen = false }) {
   );
 }
 
-// ✅ Componente memoizado
 export default memo(PreflightCard);

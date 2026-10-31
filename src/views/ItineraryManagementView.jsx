@@ -1,5 +1,5 @@
 // src/views/ItineraryManagementView.jsx
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import {
   PlusCircle,
   Calendar,
@@ -20,7 +20,7 @@ import BackButton from '../components/common/BackButton';
 import { useItineraryManagement, formatDateDDMMYYYY } from '../hooks/useItineraryManagement';
 import { TailNumberModal, DeleteConfirmationModal, TimePickerModal } from '../components/modals/ItineraryModals';
 
-export default function ItineraryManagementView({ onBack }) {
+export default function ItineraryManagementView({ onBack, flightToEdit }) {
   const {
     formData,
     setFormData,
@@ -55,7 +55,6 @@ export default function ItineraryManagementView({ onBack }) {
     confirmDeleteFlight
   } = useItineraryManagement();
 
-  // ✨ NUEVO: Estado y lógica para importación .ics
   const [importModal, setImportModal] = useState({
     isOpen: false,
     title: '',
@@ -64,6 +63,13 @@ export default function ItineraryManagementView({ onBack }) {
   });
 
   const fileInputRef = useRef(null);
+
+  // ✅ NUEVO: Efecto para cargar el vuelo a editar cuando se monta la vista
+  useEffect(() => {
+    if (flightToEdit && !editingFlightId) {
+      handleSelectFlight(flightToEdit);
+    }
+  }, [flightToEdit]);
 
   const handleIcsUpload = useCallback(async (e) => {
     const file = e.target.files[0];
@@ -103,10 +109,10 @@ export default function ItineraryManagementView({ onBack }) {
     setImportModal((prev) => ({ ...prev, isOpen: false }));
   }, []);
 
-  // Referencias para forzar despliegue de selectores al presionar cualquier punto
   const formDateRef = useRef(null);
   const filterDayRef = useRef(null);
   const filterMonthRef = useRef(null);
+
   const openPicker = (ref) => {
     if (ref.current) {
       if ('showPicker' in HTMLInputElement.prototype) {
@@ -117,17 +123,25 @@ export default function ItineraryManagementView({ onBack }) {
     }
   };
 
-  // Helper para formato de mes MM-YYYY
   const formatMMYYYY = (monthStr) => {
     if (!monthStr) return '-- / ----';
     const [yyyy, mm] = monthStr.split('-');
     return `${mm}-${yyyy}`;
   };
 
+  // ✅ NUEVO: Handler para volver con el ID del vuelo activo
+  const handleBackWithReturn = () => {
+    if (flightToEdit) {
+      onBack(flightToEdit.id);
+    } else {
+      onBack();
+    }
+  };
+
   return (
     <div className="max-w-md mx-auto space-y-4 pb-10 text-textPrincipal font-sans transition-colors duration-200">
-      {/* Botón Volver Reutilizable */}
-      <BackButton onClick={onBack} />
+      {/* Botón Volver con retorno al vuelo activo */}
+      <BackButton onClick={handleBackWithReturn} />
 
       {/* FORMULARIO DE EDICIÓN Y CREACIÓN */}
       <div className={`bg-bgCard border ${editingFlightId ? 'border-cyberYellow/80' : 'border-borderCard'} rounded-2xl p-4 space-y-4 shadow-md transition-all`}>
@@ -160,7 +174,7 @@ export default function ItineraryManagementView({ onBack }) {
             </button>
           </div>
 
-          {/* Grid 3 Columnas: N° Vuelo / Ruta / Matrícula */}
+          {/* Grid 3 Columnas */}
           <div className="grid grid-cols-3 gap-2">
             <div>
               <label className="text-[9px] font-extrabold text-textSub uppercase tracking-wider block mb-1 text-center">
@@ -203,7 +217,7 @@ export default function ItineraryManagementView({ onBack }) {
             </div>
           </div>
 
-          {/* ETD / ETA con botones TimePickerModal */}
+          {/* ETD / ETA */}
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-[9px] font-extrabold text-textSub uppercase tracking-wider block mb-1 text-center">
@@ -271,7 +285,6 @@ export default function ItineraryManagementView({ onBack }) {
             <Calendar className="w-4 h-4" />
             <span>Vuelos Programados ({flights.length})</span>
           </div>
-          {/* ✨ NUEVO: Botón de Importar .ics */}
           <label className="flex items-center gap-1.5 bg-cyberCyan/10 hover:bg-cyberCyan/20 border border-cyberCyan/30 text-cyberCyan px-2.5 py-1.5 rounded-xl text-[10px] font-bold cursor-pointer transition-all active:scale-95">
             <Upload className="w-3.5 h-3.5 text-cyberCyan" />
             <span>Importar Roster</span>
@@ -464,7 +477,7 @@ export default function ItineraryManagementView({ onBack }) {
         onSave={handleSaveTime}
       />
 
-      {/* ✨ NUEVO: Modal de resultado de importación .ics */}
+      {/* Modal de resultado de importación .ics */}
       {importModal.isOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn"

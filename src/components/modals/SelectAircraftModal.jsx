@@ -1,30 +1,40 @@
 import React, { memo, useState, useMemo, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
+import { AIRCRAFTS_SEED } from '../../data/aircraftsSeed';
 import { Search, X, Plane, Info } from 'lucide-react';
-
-// ✅ Constante fuera del componente (no se recrea en cada render)
-const DEFAULT_AIRCRAFTS = [
-  { id: '1', tailNumber: 'CC-BBA', model: '787-9', notes: 'Crew Rest Modificado' },
-  { id: '2', tailNumber: 'CC-BER', model: 'A321', notes: 'Air Berlin' },
-  { id: '3', tailNumber: 'CC-BHZ', model: 'A320', notes: 'A320-NEO, Nueva Cabina' },
-];
 
 function SelectAircraftModal({ isOpen, onClose, onSelect }) {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Consulta reactiva a IndexedDB con fallback
+  // Consulta reactiva a IndexedDB con fallback a AIRCRAFTS_SEED
   const dbAircrafts = useLiveQuery(async () => {
-    if (!db.aircrafts) return DEFAULT_AIRCRAFTS;
-    const list = await db.aircrafts.toArray();
-    return list && list.length > 0 ? list : DEFAULT_AIRCRAFTS;
+    try {
+      if (!db.aircrafts) return AIRCRAFTS_SEED;
+      const count = await db.aircrafts.count();
+      if (count === 0) {
+        // Si está vacía, insertar seed
+        await db.aircrafts.bulkAdd(AIRCRAFTS_SEED);
+      }
+      const list = await db.aircrafts.toArray();
+      return list && list.length > 0 ? list : AIRCRAFTS_SEED;
+    } catch (err) {
+      console.error('Error cargando matrículas:', err);
+      return AIRCRAFTS_SEED;
+    }
   }, []);
 
-  const aircrafts = dbAircrafts || DEFAULT_AIRCRAFTS;
+  // ✅ Fallback robusto
+  const aircrafts = useMemo(() => {
+    if (!dbAircrafts || dbAircrafts.length === 0) return AIRCRAFTS_SEED;
+    return dbAircrafts;
+  }, [dbAircrafts]);
 
-  // ✅ Filtrado y ordenamiento memoizados (solo recalcula si cambia aircrafts o searchTerm)
+  // Filtrado y ordenamiento memoizados
   const filteredAircrafts = useMemo(() => {
-    const query = searchTerm.toLowerCase();
+    const query = searchTerm.toLowerCase().trim();
+    if (!query) return aircrafts;
+    
     return aircrafts
       .filter((ac) => {
         return (
@@ -36,14 +46,12 @@ function SelectAircraftModal({ isOpen, onClose, onSelect }) {
       .sort((a, b) => (a.tailNumber || '').localeCompare(b.tailNumber || ''));
   }, [aircrafts, searchTerm]);
 
-  // ✅ Handler memoizado
   const handleSelect = useCallback((aircraft) => {
     onSelect(aircraft);
     setSearchTerm('');
     onClose();
   }, [onSelect, onClose]);
 
-  // ✅ Handler para cerrar limpiando búsqueda
   const handleClose = useCallback(() => {
     setSearchTerm('');
     onClose();
@@ -54,7 +62,7 @@ function SelectAircraftModal({ isOpen, onClose, onSelect }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3">
       <div className="bg-bgCard border border-borderCard w-full max-w-sm rounded-xl p-3.5 shadow-2xl space-y-2.5 animate-in fade-in zoom-in duration-150 text-textPrincipal">
-        {/* Cabecera del Modal */}
+        {/* Cabecera */}
         <div className="flex items-center justify-between border-b border-borderCard pb-2">
           <div className="flex items-center gap-1.5 text-cyberCyan">
             <Plane className="w-4 h-4" />
@@ -86,43 +94,62 @@ function SelectAircraftModal({ isOpen, onClose, onSelect }) {
 
         {/* Listado de Matrículas */}
         <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5 custom-scrollbar">
-          {filteredAircrafts.map((ac) => (
-            <button
-              key={ac.id || ac.tailNumber}
-              type="button"
-              onClick={() => handleSelect(ac)}
-              className="w-full bg-bgInput hover:bg-cyberCyan/10 border border-borderCard hover:border-cyberCyan/50 rounded-lg p-2 flex items-center justify-between transition-all cursor-pointer text-left group"
-            >
-              <div className="space-y-0.5 w-full">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-black font-mono text-cyberCyan group-hover:text-cyberCyan/80 tracking-wider">
-                    {ac.tailNumber}
-                  </span>
-                  {ac.model && (
-                    <span className="text-[9px] font-extrabold bg-cyberCyan/10 text-cyberCyan border border-cyberCyan/30 px-1.5 py-0.5 rounded font-mono">
-                      {ac.model}
+          {filteredAircrafts.length > 0 ? (
+            filteredAircrafts.map((ac, idx) => (
+              <button
+                key={ac.id || ac.tailNumber || idx}
+                type="button"
+                onClick={() => handleSelect(ac)}
+                className="w-full bg-bgInput hover:bg-cyberCyan/10 border border-borderCard hover:border-cyberCyan/50 rounded-lg p-2 flex items-center justify-between transition-all cursor-pointer text-left group"
+              >
+                <div className="space-y-0.5 w-full">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-black font-mono text-cyberCyan group-hover:text-cyberCyan/80 tracking-wider">
+                      {ac.tailNumber}
                     </span>
+                    {ac.model && (
+                      <span className="text-[9px] font-extrabold bg-cyberCyan/10 text-cyberCyan border border-cyberCyan/30 px-1.5 py-0.5 rounded font-mono">
+                        {ac.model}
+                      </span>
+                    )}
+                  </div>
+                  {ac.notes && (
+                    <div className="flex items-center gap-1 text-[10px] text-textSub italic">
+                      <Info className="w-3 h-3 text-textSub shrink-0" />
+                      <span className="truncate max-w-[220px]">{ac.notes}</span>
+                    </div>
                   )}
                 </div>
-                {ac.notes && (
-                  <div className="flex items-center gap-1 text-[10px] text-textSub italic">
-                    <Info className="w-3 h-3 text-textSub shrink-0" />
-                    <span className="truncate max-w-[220px]">{ac.notes}</span>
-                  </div>
-                )}
+              </button>
+            ))
+          ) : (
+            <div className="text-center py-5 space-y-2">
+              <div className="w-10 h-10 mx-auto rounded-full bg-bgInput border border-borderCard flex items-center justify-center">
+                <Plane className="w-5 h-5 text-textSub" />
               </div>
-            </button>
-          ))}
-          {filteredAircrafts.length === 0 && (
-            <div className="text-center py-5 text-xs text-textSub italic">
-              No se encontraron matrículas registradas.
+              <p className="text-xs text-textSub italic">
+                {searchTerm 
+                  ? `No se encontraron matrículas para "${searchTerm}"`
+                  : 'No hay matrículas registradas'}
+              </p>
             </div>
           )}
+        </div>
+
+        {/* Footer con contador */}
+        <div className="pt-2 border-t border-borderCard flex items-center justify-between text-[10px] text-textSub">
+          <span>{filteredAircrafts.length} matrícula{filteredAircrafts.length !== 1 ? 's' : ''}</span>
+          <button
+            type="button"
+            onClick={handleClose}
+            className="text-cyberCyan hover:text-cyberCyan/80 font-bold uppercase tracking-wider"
+          >
+            Cerrar
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-// ✅ Componente memoizado
 export default memo(SelectAircraftModal);

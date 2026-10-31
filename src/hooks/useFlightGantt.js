@@ -7,6 +7,15 @@ import { determineFlightType } from '../utils/airports';
 
 const TAT_OPTIONS = [30, 35, 40, 45, 50, 60];
 
+// ✅ Templates compartidos entre diferentes tipos de avión
+// Cada key es un template ID, y el value es el array de tipos de avión donde debe aparecer
+const SHARED_TEMPLATES = {
+  // Primera Salida: compartido entre A320 y A321
+  'scl_a320_fam_primeras_salidas_60': ['A320', 'A321'],
+  // Origen u Holgado: compartido entre A319 y A320
+  'origen_holgada_a320_50': ['A319', 'A320']
+};
+
 const findClosestLowerTAT = (groundTimeMinutes) => {
   if (!groundTimeMinutes || groundTimeMinutes <= 0) return 30;
   const validTATs = TAT_OPTIONS.filter(tat => tat <= groundTimeMinutes);
@@ -50,10 +59,19 @@ export function useFlightGantt(flight, onUpdateFlight) {
   const displayEta = flight?.eta || flight?.sta || flight?.arrivalTime || '14:00';
 
   // ---------------------------------------------------------------------------
-  // 4. TIPO DE AVIÓN FILTRADO POR MATRÍCULA
+  // 4. ✅ TIPO DE AVIÓN COMO ESTADO LOCAL (para que los selects se actualicen)
   // ---------------------------------------------------------------------------
+  const [localAircraft, setLocalAircraft] = useState(flight?.aircraftType || 'A320');
   const [availableAircraftTypes, setAvailableAircraftTypes] = useState(['A320', 'A321', 'A320neo', 'A321neo', 'B787']);
 
+  // Sincronizar estado local cuando cambia flight.aircraftType
+  useEffect(() => {
+    if (flight?.aircraftType) {
+      setLocalAircraft(flight.aircraftType);
+    }
+  }, [flight?.aircraftType]);
+
+  // Efecto para filtrar tipos de avión según la matrícula
   useEffect(() => {
     const filterAircraftByTail = async () => {
       if (!flight?.tailNumber) {
@@ -70,6 +88,10 @@ export function useFlightGantt(flight, onUpdateFlight) {
           const unique = [...new Set(filtered)];
           if (unique.length > 0) {
             setAvailableAircraftTypes(unique);
+            // Si el tipo actual no está en la lista filtrada, actualizarlo
+            if (!unique.some(t => t.toUpperCase() === localAircraft.toUpperCase())) {
+              setLocalAircraft(unique[0]);
+            }
           } else {
             setAvailableAircraftTypes(['A320', 'A321', 'A320neo', 'A321neo', 'B787']);
           }
@@ -85,9 +107,9 @@ export function useFlightGantt(flight, onUpdateFlight) {
   }, [flight?.tailNumber]);
 
   // ---------------------------------------------------------------------------
-  // 5. TIPO DE VUELO AUTOMÁTICO (DOM/INT)
+  // 5. ✅ TEMPLATES DISPONIBLES (con templates compartidos)
   // ---------------------------------------------------------------------------
-  const selectedAircraft = flight?.aircraftType || 'A320';
+  const selectedAircraft = localAircraft;
 
   const selectedFlightType = useMemo(() => {
     if (flight?.flightType) return flight.flightType;
@@ -95,9 +117,14 @@ export function useFlightGantt(flight, onUpdateFlight) {
   }, [flight?.flightType, selectedOrigin, selectedDestination]);
 
   const availableTemplates = useMemo(() => {
-    const filtered = GANTT_TEMPLATES.filter(
-      (t) => t.aircraftType?.toUpperCase() === selectedAircraft.toUpperCase()
-    );
+    const filtered = GANTT_TEMPLATES.filter((t) => {
+      // Si es un template compartido, verificar si el tipo de avión actual está en la lista
+      if (SHARED_TEMPLATES[t.id]) {
+        return SHARED_TEMPLATES[t.id].includes(selectedAircraft.toUpperCase());
+      }
+      // Si no, filtrar normalmente por aircraftType
+      return t.aircraftType?.toUpperCase() === selectedAircraft.toUpperCase();
+    });
     return filtered.length > 0 ? filtered : GANTT_TEMPLATES;
   }, [selectedAircraft]);
 
@@ -179,9 +206,10 @@ export function useFlightGantt(flight, onUpdateFlight) {
     return calculateMilestoneTimes(displayEtd, currentOriginTemplate.milestones);
   }, [displayEtd, currentOriginTemplate]);
 
+  // ✅ CORREGIDO: Restar el TAT en vez de sumarlo para milestones de destino
   const calculatedDestMilestones = useMemo(() => {
     const destTatMinutes = currentDestTemplate.tat || 0;
-    const baseEtaWithTat = addMinutesToTime(displayEta, destTatMinutes);
+    const baseEtaWithTat = addMinutesToTime(displayEta, -destTatMinutes);
     return calculateMilestoneTimes(baseEtaWithTat, currentDestTemplate.milestones);
   }, [displayEta, currentDestTemplate]);
 
@@ -242,20 +270,18 @@ export function useFlightGantt(flight, onUpdateFlight) {
     const timesOrigin = calculateMilestoneTimes(displayEtd, templateOriginToUse.milestones);
     const cpTime = timesOrigin.find((m) => m.key === 'cierre_puertas')?.calculatedTime || addMinutesToTime(displayEtd, -8);
 
-    // ✅ CORREGIDO: Solo escribir cierrePuertasTime (calculado), NUNCA cierrePuerta (manual)
     const payload = createFlightUpdatePayload({
       ...flight,
       route: selectedRoute,
       origin: selectedOrigin,
       destination: selectedDestination,
-      aircraftType: updatedFields.aircraftType ?? selectedAircraft,
+      aircraftType: updatedFields.aircraftType ?? localAircraft,
       flightType: updatedFields.flightType ?? selectedFlightType,
       ganttTemplateId: tmplOriginId,
       ganttTemplateOriginId: tmplOriginId,
       ganttTemplateDestId: tmplDestId,
       tat: updatedFields.tat ?? selectedTAT,
-      cierrePuertasTime: cpTime, // ✅ Solo el calculado va aquí
-      // ❌ ELIMINADO: cierrePuerta: cpTime  (esto sobrescribía el manual)
+      cierrePuertasTime: cpTime,
       etd: displayEtd,
       eta: displayEta,
       ...updatedFields
@@ -268,22 +294,26 @@ export function useFlightGantt(flight, onUpdateFlight) {
         console.error('Error actualizando Dexie desde Gantt:', err);
       }
     }
+
     if (onUpdateFlight) onUpdateFlight(payload);
   }, [
     flight, selectedRoute, selectedOrigin, selectedDestination,
-    selectedAircraft, selectedFlightType, selectedTAT,
+    localAircraft, selectedFlightType, selectedTAT,
     selectedTemplateOriginId, selectedTemplateDestId, currentOriginTemplate,
     displayEtd, onUpdateFlight
   ]);
 
   // ---------------------------------------------------------------------------
-  // 12. HANDLERS DE EVENTOS
+  // 12. ✅ HANDLERS MEMOIZADOS
   // ---------------------------------------------------------------------------
-  const handleAircraftChange = (e) => {
+  const handleAircraftChange = useCallback((e) => {
     const newAircraft = e.target.value;
+    setLocalAircraft(newAircraft);
+
     const matchingTemplates = GANTT_TEMPLATES.filter(
       (t) => t.aircraftType?.toUpperCase() === newAircraft.toUpperCase()
     );
+
     const originRes = resolveGanttTemplateWithReason({
       origin: selectedOrigin,
       aircraftType: newAircraft,
@@ -292,6 +322,7 @@ export function useFlightGantt(flight, onUpdateFlight) {
       tat: selectedTAT,
       time: displayEtd
     }, matchingTemplates);
+
     const destRes = resolveGanttTemplateWithReason({
       origin: selectedDestination,
       destination: selectedDestination,
@@ -301,6 +332,7 @@ export function useFlightGantt(flight, onUpdateFlight) {
       tat: selectedTAT,
       time: displayEta
     }, matchingTemplates);
+
     const originTmpl = GANTT_TEMPLATES.find((t) => t.id === originRes.templateId);
     syncChangesToParent({
       aircraftType: newAircraft,
@@ -308,35 +340,35 @@ export function useFlightGantt(flight, onUpdateFlight) {
       ganttTemplateDestId: destRes.templateId,
       tat: originTmpl ? originTmpl.tat : selectedTAT
     });
-  };
+  }, [selectedOrigin, selectedDestination, selectedFlightType, selectedTAT, displayEtd, displayEta, flight, syncChangesToParent]);
 
-  const handleTemplateOriginChange = (e) => {
+  const handleTemplateOriginChange = useCallback((e) => {
     const newId = e.target.value;
     syncChangesToParent({ ganttTemplateOriginId: newId });
-  };
+  }, [syncChangesToParent]);
 
-  const handleTemplateDestChange = (e) => {
+  const handleTemplateDestChange = useCallback((e) => {
     const newId = e.target.value;
     syncChangesToParent({ ganttTemplateDestId: newId });
-  };
+  }, [syncChangesToParent]);
 
-  const handleResetGantt = () => {
+  const handleResetGantt = useCallback(() => {
     syncChangesToParent({
       ganttTemplateId: null,
       ganttTemplateOriginId: null,
       ganttTemplateDestId: null
     });
-  };
+  }, [syncChangesToParent]);
 
-  const handleTATChange = (e) => {
+  const handleTATChange = useCallback((e) => {
     const newTAT = Number(e.target.value);
     syncChangesToParent({ tat: newTAT });
-  };
+  }, [syncChangesToParent]);
 
-  const handleFlightTypeChange = (e) => {
+  const handleFlightTypeChange = useCallback((e) => {
     const newFlightType = e.target.value;
     syncChangesToParent({ flightType: newFlightType });
-  };
+  }, [syncChangesToParent]);
 
   // ---------------------------------------------------------------------------
   // 13. RETURN
@@ -346,7 +378,7 @@ export function useFlightGantt(flight, onUpdateFlight) {
       selectedRoute,
       selectedOrigin,
       selectedDestination,
-      selectedAircraft,
+      selectedAircraft: localAircraft,
       selectedFlightType,
       selectedTAT,
       calculatedTAT,

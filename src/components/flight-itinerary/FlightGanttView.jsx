@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useFlightGantt } from '../../hooks/useFlightGantt';
 import BackButton from '../common/BackButton';
 import StickyFlightBar from '../common/StickyFlightBar';
@@ -22,7 +22,7 @@ export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
     activeTab,
     displayEtd,
     displayEta,
-    displayArriboAvionTime,
+    displayArriboAvionTime, // Solo para el panel superior
     groundTimeCalculated,
     cierrePuertasHito,
     availableTemplates,
@@ -31,6 +31,7 @@ export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
   } = state;
 
   const [autoTATEnabled, setAutoTATEnabled] = useState(true);
+  const isAutoUpdatingRef = useRef(false);
 
   const handleBackAndSave = async () => {
     await actions.syncChangesToParent();
@@ -43,8 +44,12 @@ export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
       const groundTimeMatch = groundTimeCalculated.match(/(\d+)/);
       if (groundTimeMatch) {
         const autoTAT = calculatedTAT;
-        if (autoTAT !== selectedTAT) {
+        if (autoTAT !== selectedTAT && !isAutoUpdatingRef.current) {
+          isAutoUpdatingRef.current = true;
           actions.handleTATChange({ target: { value: autoTAT } });
+          setTimeout(() => {
+            isAutoUpdatingRef.current = false;
+          }, 100);
         }
       }
     }
@@ -53,7 +58,6 @@ export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
   return (
     <div className="bg-bgApp text-textMain min-h-screen p-3 sm:p-5 font-sans">
       <div className="max-w-md mx-auto space-y-3">
-        {/* BARRA PEGAJOSA DE FLIGHT INFO */}
         <StickyFlightBar flight={flight} />
         <BackButton onClick={handleBackAndSave} title="Volver a Control de Vuelos" />
 
@@ -91,6 +95,7 @@ export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
               <div>
                 <span className="text-textSub text-[8px] font-black uppercase block mb-1">ARRIBO AVIÓN</span>
                 <div className="bg-bgInput border-borderCard rounded-xl py-1 border">
+                  {/* ✅ Aquí sí se muestra el arribo real (o calculado si no hay real) */}
                   <span className="text-cyberGreen text-xs font-black font-mono">{displayArriboAvionTime}</span>
                 </div>
               </div>
@@ -152,7 +157,7 @@ export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
             </div>
           </div>
 
-          {/* Toggle para TAT automático */}
+          {/* Toggle TAT Automático */}
           <div className="flex items-center justify-between bg-bgInput border border-borderCard rounded-xl p-2.5">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-cyberYellow" />
@@ -277,8 +282,10 @@ export default function FlightGanttView({ flight, onBack, onUpdateFlight }) {
             {filteredMilestones.length > 0 ? (
               filteredMilestones.map((m, index) => {
                 const titleText = m.title || m.label || '';
-                const isArribo = titleText.toLowerCase().includes('llegada del avion') || titleText.toLowerCase().includes('arribo');
-                const itemTime = isArribo ? displayArriboAvionTime : m.calculatedTime;
+                // ✅ CORREGIDO: Todos los hitos muestran su calculatedTime del template
+                // Sin excepciones, sin reemplazos por tiempos reales
+                const itemTime = m.calculatedTime || '--:--';
+                
                 return (
                   <div key={`${m.id}-${index}`} className="p-3 rounded-2xl border border-borderCard bg-bgInput flex items-center justify-between">
                     <div>

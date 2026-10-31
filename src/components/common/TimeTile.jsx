@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 
-function TimeTile({ label, value, icon: Icon, onClick }) {
+function TimeTile({ label, value, icon: Icon, onClick, referenceTime }) {
   const hasVal = Boolean(value) && value !== '--:--' && value !== '--: --';
 
   return (
@@ -26,13 +26,21 @@ function TimeTile({ label, value, icon: Icon, onClick }) {
 
       {/* Contenido principal */}
       <div className="relative z-10 space-y-0.5">
+        {/* Label + Tiempo de referencia */}
         <div
-          className={`text-[10px] font-bold tracking-wider uppercase truncate pr-3 transition-colors ${
+          className={`text-[12px] font-bold tracking-wider uppercase transition-colors flex justify-between items-center ${
             hasVal ? 'text-textPrincipal' : 'text-textSub group-hover:text-textMain'
           }`}
         >
-          {label}
+          <span className="truncate pr-1">{label}</span>
+          {/* ✅ CAMBIO: Tamaño un poco más grande (10px) y color cyberCyan para mayor visibilidad */}
+          {referenceTime && (
+            <span className="text-[10px] font-mono font-bold text-cyberCyan shrink-0">
+              {referenceTime}
+            </span>
+          )}
         </div>
+
         <div
           className={`text-base font-black font-mono tracking-wider ${
             hasVal ? 'text-cyberYellow' : 'text-textSub/60'

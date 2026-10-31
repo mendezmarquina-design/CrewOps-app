@@ -3,11 +3,12 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 
 export const FLEET_MODELS = ['A319', 'A320', 'A321', '787-8', '787-9'];
+
 export const validateTailNumber = (tail) => /^[A-Z0-9]{2}-[A-Z0-9]{3}$/.test(tail);
 
 export function useAircraftManagement() {
   // ---------------------------------------------------------------------------
-  // 1. ESTADOS AGRUPADOS (menos useState, más mantenible)
+  // 1. ESTADOS AGRUPADOS
   // ---------------------------------------------------------------------------
   const [formData, setFormData] = useState({
     tail: '',
@@ -17,7 +18,7 @@ export function useAircraftManagement() {
 
   const [editingAircraft, setEditingAircraft] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   const [uiState, setUiState] = useState({
     showUpdateModal: false,
     showReplaceConfirm: false,
@@ -41,7 +42,7 @@ export function useAircraftManagement() {
   ) || [];
 
   // ---------------------------------------------------------------------------
-  // 3. FILTRADO MEMOIZADO (solo recalcula cuando cambian las dependencias)
+  // 3. FILTRADO MEMOIZADO
   // ---------------------------------------------------------------------------
   const filteredAndSortedAircrafts = useMemo(() => {
     const query = searchTerm.toLowerCase();
@@ -57,7 +58,7 @@ export function useAircraftManagement() {
   }, [aircrafts, searchTerm]);
 
   // ---------------------------------------------------------------------------
-  // 4. HANDLERS MEMOIZADOS (estables entre renders)
+  // 4. HANDLERS MEMOIZADOS
   // ---------------------------------------------------------------------------
   const handleSelectForEdit = useCallback((ac) => {
     setEditingAircraft(ac);
@@ -84,7 +85,7 @@ export function useAircraftManagement() {
     setUiState((prev) => ({ ...prev, errorMessage: '' }));
 
     const formattedTail = formData.tail.trim().toUpperCase();
-    
+
     if (!validateTailNumber(formattedTail)) {
       setUiState((prev) => ({
         ...prev,
@@ -207,7 +208,7 @@ export function useAircraftManagement() {
       try {
         setUiState((prev) => ({ ...prev, errorMessage: '' }));
         const parsedData = JSON.parse(event.target.result);
-        
+
         if (!Array.isArray(parsedData)) {
           setUiState((prev) => ({
             ...prev,
@@ -234,7 +235,7 @@ export function useAircraftManagement() {
         const currentTails = new Set(aircrafts.map((a) => a.tailNumber));
         const newItems = [];
         const existingItems = [];
-        
+
         formattedData.forEach((item) => {
           if (currentTails.has(item.tailNumber)) {
             existingItems.push(item);
@@ -260,14 +261,19 @@ export function useAircraftManagement() {
         }));
       }
     };
-    
     reader.readAsText(file);
     e.target.value = '';
   }, [aircrafts, executeImport]);
 
   // ---------------------------------------------------------------------------
-  // 5. SETTERS INDIVIDUALES (para compatibilidad con componentes existentes)
+  // 5. ✅ CORREGIDO: Variables getter Y setters individuales
   // ---------------------------------------------------------------------------
+  const showUpdateModal = uiState.showUpdateModal;
+  const showReplaceConfirm = uiState.showReplaceConfirm;
+  const showNewList = uiState.showNewList;
+  const showExistingList = uiState.showExistingList;
+  const errorMessage = uiState.errorMessage;
+
   const setNewTail = useCallback((val) => {
     setFormData((prev) => ({ ...prev, tail: val }));
   }, []);
@@ -297,7 +303,7 @@ export function useAircraftManagement() {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // 6. RETURN (misma API que antes, compatibilidad total)
+  // 6. RETURN
   // ---------------------------------------------------------------------------
   return {
     // Form data (con setters individuales para compatibilidad)
@@ -311,7 +317,7 @@ export function useAircraftManagement() {
     // Editing state
     editingAircraft,
 
-    // UI state (con setters individuales para compatibilidad)
+    // ✅ UI state (con variables getter Y setters individuales)
     showUpdateModal,
     setShowUpdateModal,
     showReplaceConfirm,
@@ -320,7 +326,7 @@ export function useAircraftManagement() {
     setShowNewList,
     showExistingList,
     setShowExistingList,
-    errorMessage: uiState.errorMessage,
+    errorMessage,
 
     // Search
     searchTerm,

@@ -10,7 +10,7 @@ import { useTimePicker } from '../../hooks/useTimePicker';
 import { GANTT_TEMPLATES, calculateMilestoneTimes } from '../../data/ganttTemplates';
 import { calculateDuration } from '../../utils/flightUtils';
 
-// ✅ Helper: convertir "HH:MM" a minutos totales para comparar
+// ✅ Helper: convertir "HH:MM" a minutos totales
 const timeToMinutes = (timeStr) => {
   if (!timeStr || timeStr === '--:--') return null;
   const [h, m] = timeStr.split(':').map(Number);
@@ -18,7 +18,7 @@ const timeToMinutes = (timeStr) => {
   return h * 60 + m;
 };
 
-// ✅ Helper: determinar estado del cierre
+// ✅ Helper: determinar estado del cierre (a tiempo / atrasado)
 const getCierreStatus = (cierreManual, cierreCalculado) => {
   if (!cierreManual || cierreManual === '--:--') return null;
   if (!cierreCalculado || cierreCalculado === '--:--') return null;
@@ -28,9 +28,9 @@ const getCierreStatus = (cierreManual, cierreCalculado) => {
 
   if (manual === null || calculado === null) return null;
 
-  // Manejar cruce de medianoche (si manual es muy pequeño y calculado muy grande)
+  // Manejar cruce de medianoche
   let diff = manual - calculado;
-  if (diff < -720) diff += 1440; // +24h si cruzó medianoche
+  if (diff < -720) diff += 1440;
 
   return {
     onTime: diff <= 0,
@@ -93,6 +93,7 @@ function DepartureCard({ flightData, onUpdateFlight, defaultOpen = true }) {
     [flightData?.inicioEmbPax, flightData?.finAcomodacion]
   );
 
+  // ✅ Handler: siempre abre el modal de edición (nunca auto-hora)
   const handleCierrePuertaClick = useCallback(() => {
     const cierreManual = flightData?.cierrePuerta;
     handleFieldClick('cierrePuerta', 'Cierre Puerta (Real)', cierreManual || '--:--');
@@ -102,12 +103,12 @@ function DepartureCard({ flightData, onUpdateFlight, defaultOpen = true }) {
   const cierreCalculado = gantt.cierrePuertasCalculado;
   const cierreStatus = useMemo(() => getCierreStatus(cierreManual, cierreCalculado), [cierreManual, cierreCalculado]);
 
-  // ✅ Clases condicionales según estado
+  // ✅ Clases dinámicas según estado
   const cierreClasses = useMemo(() => {
     if (!cierreStatus) {
       return {
         container: 'bg-bgInput border-borderCard hover:border-cyberYellow/50',
-        title: 'text-textPrincipal',
+        title: 'text-cyberYellow', // ✅ SIEMPRE amarillo
         icon: 'text-textSub',
         value: 'bg-bgCardHeader border-borderCard text-textSub',
         badge: null
@@ -116,18 +117,24 @@ function DepartureCard({ flightData, onUpdateFlight, defaultOpen = true }) {
     if (cierreStatus.onTime) {
       return {
         container: 'bg-cyberGreen/5 border-cyberGreen/50 hover:border-cyberGreen',
-        title: 'text-cyberGreen',
+        title: 'text-cyberYellow', // ✅ SIEMPRE amarillo
         icon: 'text-cyberGreen',
         value: 'bg-cyberGreen/10 border-cyberGreen/40 text-cyberGreen',
-        badge: { text: `✓ ${cierreStatus.diffMinutes === 0 ? 'Puntual' : `${cierreStatus.diffMinutes} min antes`}`, color: 'text-cyberGreen' }
+        badge: {
+          text: cierreStatus.diffMinutes === 0 ? '✓ Puntual' : `✓ ${cierreStatus.diffMinutes} min antes`,
+          color: 'text-cyberGreen'
+        }
       };
     } else {
       return {
         container: 'bg-cyberCoral/5 border-cyberCoral/50 hover:border-cyberCoral',
-        title: 'text-cyberCoral',
+        title: 'text-cyberYellow', // ✅ SIEMPRE amarillo
         icon: 'text-cyberCoral',
         value: 'bg-cyberCoral/10 border-cyberCoral/40 text-cyberCoral',
-        badge: { text: `⚠ ${cierreStatus.diffMinutes} min atrasado`, color: 'text-cyberCoral' }
+        badge: {
+          text: ` ${cierreStatus.diffMinutes} min atrasado`,
+          color: 'text-cyberCoral'
+        }
       };
     }
   }, [cierreStatus]);
@@ -222,7 +229,7 @@ function DepartureCard({ flightData, onUpdateFlight, defaultOpen = true }) {
 
             {/* SECCIÓN CIERRE PUERTAS */}
             <div className="space-y-2 pt-1">
-              {/* Límite OTP (calculado, readonly, referencia) */}
+              {/* Límite OTP (calculado, referencia) */}
               <div className="bg-cyberCyan/5 border border-cyberCyan/30 rounded-xl p-3 flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
                   <Target className="w-4 h-4 text-cyberCyan shrink-0" />
@@ -242,7 +249,7 @@ function DepartureCard({ flightData, onUpdateFlight, defaultOpen = true }) {
                 </div>
               </div>
 
-              {/* ✅ Cierre Real (manual, editable) - CON COLORES DINÁMICOS */}
+              {/* ✅ Cierre Real con colores dinámicos */}
               <button
                 type="button"
                 onClick={handleCierrePuertaClick}
@@ -255,6 +262,7 @@ function DepartureCard({ flightData, onUpdateFlight, defaultOpen = true }) {
                     <DoorClosed className={`w-4 h-4 shrink-0 ${cierreClasses.icon}`} />
                   )}
                   <div className="min-w-0">
+                    {/* ✅ TÍTULO SIEMPRE EN CYBERYELLOW */}
                     <p className={`text-[10px] font-black uppercase tracking-wider block ${cierreClasses.title}`}>
                       CIERRE PUERTA (Real)
                     </p>

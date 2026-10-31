@@ -3,12 +3,9 @@ import { Plane, DoorClosed, Bell } from 'lucide-react';
 
 function StickyFlightBar({ flight, onOpenAlarmModal }) {
   const hasFlight = Boolean(flight);
-  
-  // ✅ CAMBIO: Mostrar el cierre calculado (OTP), no el real/manual
-  // Prioridad: cierrePuertasTime (calculado por Gantt) sobre cierrePuerta (manual)
+
   const cpTime = flight?.cierrePuertasTime || flight?.cierrePuerta || '--:--';
 
-  // Detectar si la alarma está activa
   const [alarmActive, setAlarmActive] = useState(() => {
     const isEnabled = localStorage.getItem('doorCloseAlarm') === 'true';
     const hasMinutes = localStorage.getItem('alarmMinutesList');
@@ -27,7 +24,7 @@ function StickyFlightBar({ flight, onOpenAlarmModal }) {
 
   if (!hasFlight) {
     return (
-      <div className="sticky top-14 z-20 w-full bg-bgCard/90 backdrop-blur-md border border-borderCard shadow-sm rounded-2xl py-2 px-3.5 transition-all duration-200 min-h-[44px]">
+      <div className="sticky top-14 z-20 w-full bg-bgCard border border-borderCard shadow-sm rounded-2xl py-2 px-3.5 transition-all duration-200 min-h-[44px]">
         <div className="max-w-xl mx-auto flex items-center justify-center gap-2 h-full">
           <Plane className="w-4 h-4 text-textSub/50 shrink-0" />
           <span className="text-xs font-bold text-textSub tracking-wide">Sin vuelo activo</span>
@@ -38,10 +35,10 @@ function StickyFlightBar({ flight, onOpenAlarmModal }) {
   }
 
   return (
-    <div className="sticky top-14 z-20 w-full bg-bgCard/90 backdrop-blur-md border border-borderCard shadow-sm rounded-2xl py-2 px-3.5 transition-colors duration-200 min-h-[44px]">
+    <div className="sticky top-14 z-20 w-full bg-bgCard border border-borderCard shadow-sm rounded-2xl py-2 px-3.5 transition-colors duration-200 min-h-[44px]">
       <div className="max-w-xl mx-auto flex items-center justify-between font-mono h-full">
         
-        {/* LADO IZQUIERDO: Vuelo + Ruta (clickeable) */}
+        {/* LADO IZQUIERDO: Vuelo + Ruta */}
         <div className="flex items-center gap-2">
           <Plane className="w-4 h-4 text-cyberCyan shrink-0" />
           <div className="flex flex-col leading-tight">
@@ -69,25 +66,31 @@ function StickyFlightBar({ flight, onOpenAlarmModal }) {
           </div>
         </div>
 
-        {/* LADO DERECHO: CP OTP, ETD y ETA */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/30 rounded-md px-1.5 py-0.5">
+        {/* LADO DERECHO: CP, ETD y ETA */}
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          
+          {/* CP - Cierre Puertas */}
+          <div className="flex items-center gap-1 bg-input border border-amber-500/40 rounded-md px-1.5 py-0.5 h-7">
             <DoorClosed className="w-3 h-3 text-amber-400 shrink-0" />
-            <span className="text-[9px] font-black text-amber-400 uppercase font-sans hidden sm:inline">CP:</span>
-            <span className="text-xs font-bold text-amber-400 font-mono">{cpTime}</span>
+            <span className="text-sm font-bold text-amber-400 font-mono">{cpTime}</span>
           </div>
+
+          {/* ETD */}
           <div className="flex items-center gap-1.5">
             <span className="text-[9px] font-black text-textSub uppercase font-sans hidden sm:inline">ETD:</span>
-            <span className="text-xs font-bold text-cyberGreen bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded leading-none">
+            <span className="text-sm font-bold text-cyberGreen <bg-input border border-emerald-500/30 px-1.5 py-0.5 rounded leading-none h-7 flex items-center">
               {flight.etd || '--:--'}
             </span>
           </div>
+
+          {/* ETA */}
           <div className="flex items-center gap-1.5">
             <span className="text-[9px] font-black text-textSub uppercase font-sans hidden sm:inline">ETA:</span>
-            <span className="text-xs font-bold text-cyberGreen bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded leading-none">
+            <span className="text-sm font-bold text-cyberGreen bg-input border border-emerald-500/30 px-1.5 py-0.5 rounded leading-none h-7 flex items-center">
               {flight.eta || '--:--'}
             </span>
           </div>
+
         </div>
       </div>
     </div>

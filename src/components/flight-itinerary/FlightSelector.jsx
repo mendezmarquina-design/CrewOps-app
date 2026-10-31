@@ -9,8 +9,8 @@ import {
 } from 'lucide-react';
 
 // Configuración del gesto de swipe
-const SWIPE_THRESHOLD = 50; // px mínimos para considerar un swipe válido
-const SWIPE_MAX_TIME = 300; // ms máximos para que el gesto sea considerado rápido
+const SWIPE_THRESHOLD = 50;
+const SWIPE_MAX_TIME = 300;
 
 export default function FlightSelector({
   selectedFlight,
@@ -20,25 +20,20 @@ export default function FlightSelector({
   onDateChange,
   onSelectFlight,
   onTogglePin,
-  onNewFlight
+  onNewFlight,
+  onDoubleClickFlight // ✅ NUEVA PROP: para ir a Gestión de Itinerarios
 }) {
   const currentDateStr = selectedDate || new Date().toISOString().split('T')[0];
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-
-  // Estado para el mes/año visible en el calendario flotante
   const [viewDate, setViewDate] = useState(() => {
     const [y, m] = currentDateStr.split('-').map(Number);
     return new Date(y, m - 1, 1);
   });
-
   const calendarRef = useRef(null);
-
-  // ✨ Refs para el gesto de swipe
-  const flightListRef = useRef(null); // Ref de la lista de vuelos (para excluirla del swipe)
+  const flightListRef = useRef(null);
   const touchStartRef = useRef(null);
   const [swipeDirection, setSwipeDirection] = useState(null);
 
-  // Cerrar el calendario al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (calendarRef.current && !calendarRef.current.contains(event.target)) {
@@ -70,9 +65,7 @@ export default function FlightSelector({
     setViewDate(new Date(yyyy, dateObj.getMonth(), 1));
   };
 
-  // ✨ GESTOS DE SWIPE EN TODA LA CARD (excepto en la lista de vuelos)
   const handleCardTouchStart = useCallback((e) => {
-    // Si el toque inicia en la lista de vuelos, no aplicar swipe (permitir scroll normal)
     if (flightListRef.current && flightListRef.current.contains(e.target)) {
       touchStartRef.current = null;
       return;
@@ -86,28 +79,20 @@ export default function FlightSelector({
   }, []);
 
   const handleCardTouchEnd = useCallback((e) => {
-    // Si el touch inició en la lista de vuelos, no hacer nada
     if (!touchStartRef.current) return;
-    // Si el calendario está abierto, no aplicar swipe (evitar cambios accidentales)
     if (isCalendarOpen) return;
-
     const { x: startX, y: startY, time: startTime } = touchStartRef.current;
     const touch = e.changedTouches[0];
     const deltaX = touch.clientX - startX;
     const deltaY = touch.clientY - startY;
     const timeDiff = Date.now() - startTime;
-
-    // Debe ser un gesto rápido, más horizontal que vertical, y con distancia suficiente
     const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
     const isFastEnough = timeDiff < SWIPE_MAX_TIME;
     const isLongEnough = Math.abs(deltaX) > SWIPE_THRESHOLD;
-
     if (isHorizontal && isFastEnough && isLongEnough) {
       const direction = deltaX < 0 ? 'left' : 'right';
       setSwipeDirection(direction);
       setTimeout(() => setSwipeDirection(null), 200);
-
-      // Swipe izquierda → día siguiente | Swipe derecha → día anterior
       if (deltaX < 0) {
         handleDayShift(1);
       } else {
@@ -116,7 +101,6 @@ export default function FlightSelector({
     }
   }, [currentDateStr, onDateChange, isCalendarOpen]);
 
-  // --- LÓGICA DEL CALENDARIO PERSONALIZADO ---
   const handleMonthChange = (offset) => {
     setViewDate(prev => new Date(prev.getFullYear(), prev.getMonth() + offset, 1));
   };
@@ -141,33 +125,34 @@ export default function FlightSelector({
     setIsCalendarOpen(false);
   };
 
-  // Matriz de días del mes
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
-  const firstDayOfWeek = (new Date(year, month, 1).getDay() + 6) % 7; // Lunes = 0
+  const firstDayOfWeek = (new Date(year, month, 1).getDay() + 6) % 7;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const monthNames = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
   ];
 
+  // ✅ Handler para doble click en un vuelo
+  const handleDoubleClickFlight = useCallback((flight) => {
+    if (onDoubleClickFlight) {
+      onDoubleClickFlight(flight);
+    }
+  }, [onDoubleClickFlight]);
+
   return (
     <>
-      {/* ✨ CARD PRINCIPAL CON GESTOS DE SWIPE */}
       <div
         className={`bg-bgCard border border-borderCard rounded-2xl p-3.5 space-y-3 shadow-sm max-w-md mx-auto transition-all duration-200 ${
-          swipeDirection === 'left'
-            ? 'translate-x-1 opacity-80'
-            : swipeDirection === 'right'
-            ? '-translate-x-1 opacity-80'
-            : ''
+          swipeDirection === 'left' ? 'translate-x-1 opacity-80' :
+          swipeDirection === 'right' ? '-translate-x-1 opacity-80' : ''
         }`}
         onTouchStart={handleCardTouchStart}
         onTouchEnd={handleCardTouchEnd}
       >
         {/* Contenedor de Fecha */}
         <div className="flex items-center justify-between gap-2 flex-1 relative" ref={calendarRef}>
-          {/* Día Anterior */}
           <button
             type="button"
             onClick={() => handleDayShift(-1)}
@@ -177,7 +162,6 @@ export default function FlightSelector({
             <ChevronLeft className="w-5 h-5" />
           </button>
 
-          {/* BOTÓN CALENDARIO */}
           <button
             type="button"
             onClick={() => setIsCalendarOpen(!isCalendarOpen)}
@@ -193,10 +177,8 @@ export default function FlightSelector({
             </span>
           </button>
 
-          {/* POPUP / MODAL DEL CALENDARIO DARK THEME */}
           {isCalendarOpen && (
             <div className="absolute top-13 left-1/2 -translate-x-1/2 z-50 w-72 bg-bgCard border border-borderCard rounded-2xl p-4 shadow-2xl animate-scaleUp">
-              {/* Header del Calendario */}
               <div className="flex items-center justify-between mb-3">
                 <button
                   type="button"
@@ -216,23 +198,15 @@ export default function FlightSelector({
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
-
-              {/* Días de la semana */}
               <div className="grid grid-cols-7 gap-1 text-center mb-1">
                 {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'].map((d) => (
-                  <span key={d} className="text-[10px] font-bold text-textSub uppercase">
-                    {d}
-                  </span>
+                  <span key={d} className="text-[10px] font-bold text-textSub uppercase">{d}</span>
                 ))}
               </div>
-
-              {/* Grilla de Días */}
               <div className="grid grid-cols-7 gap-1">
-                {/* Espacios vacíos mes anterior */}
                 {Array.from({ length: firstDayOfWeek }).map((_, i) => (
                   <div key={`empty-${i}`} />
                 ))}
-                {/* Días del mes actual */}
                 {Array.from({ length: daysInMonth }).map((_, i) => {
                   const dayNumber = i + 1;
                   const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
@@ -251,8 +225,8 @@ export default function FlightSelector({
                         isSelected
                           ? 'bg-cyberCyan text-black font-black shadow-[0_0_8px_rgba(6,182,212,0.6)]'
                           : isToday
-                          ? 'border border-cyberCyan text-cyberCyan bg-cyberCyan/10'
-                          : 'text-textMain hover:bg-bgInput hover:text-cyberCyan'
+                            ? 'border border-cyberCyan text-cyberCyan bg-cyberCyan/10'
+                            : 'text-textMain hover:bg-bgInput hover:text-cyberCyan'
                       }`}
                     >
                       {dayNumber}
@@ -260,8 +234,6 @@ export default function FlightSelector({
                   );
                 })}
               </div>
-
-              {/* Footer Botón Hoy */}
               <div className="mt-3 pt-2 border-t border-borderCard/50 flex justify-between items-center">
                 <button
                   type="button"
@@ -281,7 +253,6 @@ export default function FlightSelector({
             </div>
           )}
 
-          {/* Día Siguiente */}
           <button
             type="button"
             onClick={() => handleDayShift(1)}
@@ -292,7 +263,6 @@ export default function FlightSelector({
           </button>
         </div>
 
-        {/* Hint visual de swipe (solo en móvil) */}
         <div className="sm:hidden flex justify-center -mt-1">
           <span className="text-[9px] text-textSub/60 font-mono flex items-center gap-1 select-none">
             <ChevronLeft className="w-2.5 h-2.5" />
@@ -301,7 +271,7 @@ export default function FlightSelector({
           </span>
         </div>
 
-        {/* Listado de Vuelos del Día (EXCLUIDO del swipe para permitir scroll) */}
+        {/* Listado de Vuelos del Día */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-textPrincipal uppercase tracking-wider block">
@@ -313,7 +283,6 @@ export default function FlightSelector({
               </span>
             )}
           </div>
-          {/* ✨ Ref en la lista de vuelos para excluirla del swipe */}
           <div
             ref={flightListRef}
             className="flex items-center gap-2 overflow-x-auto px-2 py-1 scrollbar-none flex-nowrap"
@@ -324,9 +293,12 @@ export default function FlightSelector({
               const formattedFlightNumber = (f.flightNumber || '').replace(/\s+/g, '');
               return (
                 <div key={f.id} className="relative group shrink-0">
+                  {/* ✅ Botón con click simple y doble click */}
                   <button
                     type="button"
                     onClick={() => onSelectFlight(f)}
+                    onDoubleClick={() => handleDoubleClickFlight(f)}
+                    title="Click: seleccionar · Doble click: abrir en Gestión de Itinerarios"
                     className={`px-3.5 py-1.5 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer active:scale-95 border min-w-[75px] ${
                       isSelected
                         ? 'bg-bgInput border-cyberCyan shadow-[0_0_12px_rgba(6,182,212,0.2)] ring-1 ring-cyberCyan/40'

@@ -8,7 +8,7 @@ import AircraftManagementView from './views/AircraftManagementView';
 import ItineraryManagementView from './views/ItineraryManagementView';
 import ReportManagementView from './views/ReportManagementView';
 import DocumentSearchView from './views/DocumentSearchView';
-import DocumentsLibraryView from './views/DocumentsLibraryView'; // ← NUEVO
+import DocumentsLibraryView from './views/DocumentsLibraryView';
 import GceManagementView from './views/GceManagementView';
 import FlightBriefingView from './components/flight-itinerary/FlightBriefingView';
 import FlightGanttView from './components/flight-itinerary/FlightGanttView';
@@ -16,12 +16,17 @@ import FlightGanttView from './components/flight-itinerary/FlightGanttView';
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentTab, setCurrentTab] = useState('flights');
+  
+  // Estados de navegación y selección
   const [selectedBriefingFlight, setSelectedBriefingFlight] = useState(null);
   const [selectedGanttFlight, setSelectedGanttFlight] = useState(null);
   const [activeGceFlight, setActiveGceFlight] = useState(null);
   
   // Guarda siempre el vuelo activo seleccionado
   const [lastActiveFlight, setLastActiveFlight] = useState(null);
+  
+  // ✨ NUEVO: Estado para el vuelo que se va a editar desde doble click
+  const [flightToEdit, setFlightToEdit] = useState(null);
 
   const handleFlightChange = useCallback((flight) => {
     if (flight) {
@@ -29,7 +34,6 @@ export default function App() {
     }
   }, []);
 
-  // FUNCIÓN MAESTRA: Actualiza los datos del vuelo en todo el flujo de la App
   const handleUpdateFlight = useCallback((updatedFlight) => {
     if (!updatedFlight) return;
     setLastActiveFlight(updatedFlight);
@@ -40,10 +44,32 @@ export default function App() {
   const goToFlights = () => {
     setSelectedBriefingFlight(null);
     setSelectedGanttFlight(null);
+    setFlightToEdit(null); // ✨ Limpiar vuelo a editar al volver
     setCurrentTab('flights');
   };
 
-  const goToItinerary = () => setCurrentTab('itinerary');
+  const goToItinerary = () => {
+    setFlightToEdit(null); // ✨ Asegurar que no haya vuelo pre-cargado si es uno nuevo
+    setCurrentTab('itinerary');
+  };
+
+  // ✨ NUEVO: Handler para el doble click en FlightSelector
+  const handleDoubleClickFlight = (flight) => {
+    console.log("✏️ Abriendo gestión para editar:", flight.flightNumber);
+    setFlightToEdit(flight);
+    setCurrentTab('itinerary');
+  };
+
+  // ✨ NUEVO: Handler para volver desde Gestión de Itinerarios
+  const handleBackFromManagement = (returnToFlightId) => {
+    setCurrentTab('flights');
+    setFlightToEdit(null);
+    // Si hay un ID de retorno, nos aseguramos de que sea el activo
+    if (returnToFlightId && lastActiveFlight?.id !== returnToFlightId) {
+      // Opcional: Si necesitas buscar el vuelo en la DB para restaurarlo, hazlo aquí.
+      // Por ahora, confiamos en que lastActiveFlight ya tiene el contexto correcto.
+    }
+  };
 
   const handleOpenGceForFlight = (flight) => {
     const targetFlight = flight || lastActiveFlight;
@@ -68,7 +94,7 @@ export default function App() {
     <ThemeProvider>
       <div className="font-sans selection:bg-accentBlue selection:text-white">
         <Header onOpenMenu={() => setIsSidebarOpen(true)} />
-        
+
         <Sidebar 
           isOpen={isSidebarOpen} 
           onClose={() => setIsSidebarOpen(false)} 
@@ -76,11 +102,12 @@ export default function App() {
           setCurrentTab={(tab) => {
             setSelectedBriefingFlight(null);
             setSelectedGanttFlight(null);
+            setFlightToEdit(null); // ✨ Limpiar al cambiar de pestaña desde el menú
             if (tab === 'gce') setActiveGceFlight(null);
             setCurrentTab(tab);
           }}
         />
-        
+
         <main className="p-4 max-w-md mx-auto space-y-4">
           {/* VISTA DE BRIEFING */}
           {currentTab === 'flights' && selectedBriefingFlight ? (
@@ -107,9 +134,10 @@ export default function App() {
                   onOpenGce={handleOpenGceForFlight}
                   onOpenGantt={handleOpenGanttForFlight}
                   onUpdateFlight={handleUpdateFlight}
+                  onDoubleClickFlight={handleDoubleClickFlight} // ✨ CONEXIÓN CLAVE
                 />
               )}
-              
+
               {/* RESTO DE VISTAS */}
               {currentTab === 'reports' && (
                 <ReportManagementView onBack={goToFlights} />
@@ -123,19 +151,22 @@ export default function App() {
               {(currentTab === 'documents' || currentTab === 'briefing') && (
                 <DocumentSearchView onBackToFlights={goToFlights} />
               )}
-              
-              {/* ✨ NUEVA VISTA: BIBLIOTECA DE DOCUMENTOS */}
               {currentTab === 'library' && (
                 <DocumentsLibraryView onBack={goToFlights} />
               )}
-              
               {currentTab === 'aircrafts' && (
                 <AircraftManagementView onBackToFlights={goToFlights} />
               )}
-              {(currentTab === 'itinerary' || currentTab === 'itineraries') && (
-                <ItineraryManagementView onBack={goToFlights} />
-              )}
               
+              {/* ✨ VISTA DE GESTIÓN DE ITINERARIOS (Con soporte para edición) */}
+              {(currentTab === 'itinerary' || currentTab === 'itineraries') && (
+                <ItineraryManagementView 
+                  onBack={handleBackFromManagement} // ✨ CONEXIÓN CLAVE
+                  flightToEdit={flightToEdit}       // ✨ CONEXIÓN CLAVE
+                />
+              )}
+
+              {/* Fallback para tabs no implementados */}
               {currentTab !== 'flights' && 
                currentTab !== 'reports' && 
                currentTab !== 'gce' && 
